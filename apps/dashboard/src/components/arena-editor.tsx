@@ -17,6 +17,9 @@ import {
   GridFourIcon,
   LockIcon,
   MapPinIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+  HandIcon,
   PathIcon,
   PencilSimpleLineIcon,
   PlusIcon,
@@ -27,12 +30,12 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import type { GeoMultiPolygon, GeoPolygon, StadiumRingInput, VenueCapacityMode, VenuePlanShapeKind } from "@onepixel/protocol";
 import { LocationPicker, type CadastralSelection } from "./location-picker";
 import { countSeats, generateVenueDocument, parseVenueDocument, pointInLocalPolygon, polygonBounds, projectGeoBoundaryRings, rectangle, type ElementKind, type StoredLayout, type StoredVenue, type VenueDocument, type VenueElement } from "@/lib/venue-types";
 
-type Tool = "select" | "polygon" | "seat" | "place";
+type Tool = "select" | "pan" | "polygon" | "seat" | "place";
 const elementTools: Array<{ kind: ElementKind; label: string; icon: typeof BuildingsIcon }> = [
   { kind: "sector", label: "Settore", icon: GridFourIcon },
   { kind: "stand", label: "Tribuna", icon: StairsIcon },
@@ -70,7 +73,15 @@ function elementColor(kind: ElementKind, active: boolean) {
   return "#30393a";
 }
 
-function SeatLayer({ document, levelId, showAllRings }: { document: VenueDocument; levelId: string; showAllRings: boolean }) {
+function rotatePoint(point: { x: number; y: number }, center: { x: number; y: number }, rotationDeg = 0) {
+  if (!rotationDeg) return point;
+  const radians = rotationDeg * Math.PI / 180;
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return { x: center.x + dx * Math.cos(radians) - dy * Math.sin(radians), y: center.y + dx * Math.sin(radians) + dy * Math.cos(radians) };
+}
+
+function SeatLayer({ document, levelId, showAllRings, viewport }: { document: VenueDocument; levelId: string; showAllRings: boolean; viewport: { x: number; y: number; width: number; height: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -84,15 +95,16 @@ function SeatLayer({ document, levelId, showAllRings }: { document: VenueDocumen
       if (!context) return;
       context.scale(ratio, ratio);
       context.clearRect(0, 0, rect.width, rect.height);
-      const scale = Math.min(rect.width / document.widthM, rect.height / document.heightM);
-      const offsetX = (rect.width - document.widthM * scale) / 2;
-      const offsetY = (rect.height - document.heightM * scale) / 2;
+      const scale = Math.min(rect.width / viewport.width, rect.height / viewport.height);
+      const offsetX = (rect.width - viewport.width * scale) / 2;
+      const offsetY = (rect.height - viewport.height * scale) / 2;
       context.fillStyle = "rgba(209,230,106,.55)";
       const visibleLevels = new Set(document.levels.filter((level) => !level.hidden && (showAllRings || level.id === levelId)).map((level) => level.id));
       for (const element of document.elements.filter((item) => visibleLevels.has(item.levelId ?? "") && !item.hidden && (item.rows ?? 0) > 0 && (item.seatsPerRow ?? 0) > 0)) {
         const bounds = polygonBounds(element.polygon);
         const rows = Math.max(1, element.rows ?? 1);
         const seats = Math.max(1, element.seatsPerRow ?? 1);
+        const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
         const maxDots = 2400;
         const stride = Math.max(1, Math.ceil(rows * seats / maxDots));
         const deleted = new Set(element.seatOverrides?.filter((seat) => seat.deleted).map((seat) => `${seat.row}-${seat.number}`) ?? []);
@@ -104,8 +116,9 @@ function SeatLayer({ document, levelId, showAllRings }: { document: VenueDocumen
             const curve = element.rowStyle === "curved" ? Math.sin((seat / Math.max(1, seats - 1)) * Math.PI) * bounds.height * 0.08 : 0;
             const local = { x: bounds.x + (seat + 0.5) * bounds.width / seats, y: bounds.y + (row + 0.5) * bounds.height / rows + curve };
             if (!pointInLocalPolygon(local, element.polygon)) continue;
-            const x = offsetX + local.x * scale;
-            const y = offsetY + local.y * scale;
+            const rotated = rotatePoint(local, center, element.rotation);
+            const x = offsetX + (rotated.x - viewport.x) * scale;
+            const y = offsetY + (rotated.y - viewport.y) * scale;
             context.beginPath();
             context.arc(x, y, stride > 1 ? 0.65 : 1.1, 0, Math.PI * 2);
             context.fill();
@@ -113,8 +126,9 @@ function SeatLayer({ document, levelId, showAllRings }: { document: VenueDocumen
         }
         context.fillStyle = "rgba(242,243,237,.92)";
         for (const seat of element.seatOverrides?.filter((item) => !item.deleted) ?? []) {
+          const rotated = rotatePoint(seat, center, element.rotation);
           context.beginPath();
-          context.arc(offsetX + seat.x * scale, offsetY + seat.y * scale, seat.accessible ? 2.4 : 1.7, 0, Math.PI * 2);
+          context.arc(offsetX + (rotated.x - viewport.x) * scale, offsetY + (rotated.y - viewport.y) * scale, seat.accessible ? 2.4 : 1.7, 0, Math.PI * 2);
           context.fill();
         }
         context.fillStyle = "rgba(209,230,106,.55)";
@@ -124,7 +138,7 @@ function SeatLayer({ document, levelId, showAllRings }: { document: VenueDocumen
     observer.observe(canvas);
     draw();
     return () => observer.disconnect();
-  }, [document, levelId, showAllRings]);
+  }, [document, levelId, showAllRings, viewport]);
   return <canvas ref={ref} className="pointer-events-none absolute inset-0 size-full" aria-hidden />;
 }
 
@@ -196,8 +210,11 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   const [setupFieldHeight, setSetupFieldHeight] = useState(68);
   const [setupRings, setSetupRings] = useState<StadiumRingInput[]>([{ name: "Anello 1", capacity: 5500, sectorCount: 8 }, { name: "Anello 2", capacity: 6500, sectorCount: 10 }]);
   const [showAllRings, setShowAllRings] = useState(true);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [viewport, setViewport] = useState({ x: 0, y: 0, width: document.widthM, height: document.heightM });
   const drag = useRef<{ startX: number; startY: number; before: VenueDocument; originals: Map<string, VenueElement>; moved: boolean } | null>(null);
   const vertexDrag = useRef<{ elementId: string; vertexIndex: number; before: VenueDocument } | null>(null);
+  const pan = useRef<{ clientX: number; clientY: number; before: typeof viewport } | null>(null);
   const board = useRef<SVGSVGElement>(null);
   const selected = document.elements.find((element) => element.id === selectedIds[0]);
   const selectedBounds = selected ? polygonBounds(selected.polygon) : undefined;
@@ -249,6 +266,23 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     setSelectedIds([]);
   }, [commit, document, selectedIds]);
 
+  const duplicateSelected = useCallback(() => {
+    if (selectedIds.length === 0) return;
+    const clones = document.elements.filter((element) => selectedIds.includes(element.id)).map((element) => {
+      const id = `${element.kind}-${crypto.randomUUID()}`;
+      return {
+        ...structuredClone(element),
+        id,
+        label: `${element.label} copia`,
+        polygon: element.polygon.map((point) => ({ x: point.x + 4, y: point.y + 4 })),
+        geometry: element.geometry ? { ...element.geometry, center: { x: element.geometry.center.x + 4, y: element.geometry.center.y + 4 } } : undefined,
+        seatOverrides: element.seatOverrides?.map((seat) => ({ ...seat, id: `${seat.id}-${id}`, x: seat.x + 4, y: seat.y + 4 })),
+      } satisfies VenueElement;
+    });
+    commit({ ...document, elements: [...document.elements, ...clones] });
+    setSelectedIds(clones.map((element) => element.id));
+  }, [commit, document, selectedIds]);
+
   const completePolygon = useCallback(() => {
     if (draftPolygon.length < 3) return;
     const element: VenueElement = { id: `free-${crypto.randomUUID()}`, kind: "free-area", label: "Area libera", levelId: activeLevelId, polygon: draftPolygon };
@@ -267,13 +301,15 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
         event.preventDefault();
         if (event.shiftKey) redo(); else undo();
       }
+      else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d" && !isEditing) { event.preventDefault(); duplicateSelected(); }
+      else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !isEditing) { event.preventDefault(); setSelectedIds(document.elements.filter((element) => element.levelId === activeLevelId && !element.hidden).map((element) => element.id)); }
       else if ((event.key === "Delete" || event.key === "Backspace") && !isEditing) removeSelected();
       else if (event.key === "Enter") completePolygon();
       else if (event.key === "Escape") { setDraftPolygon([]); setTool("select"); }
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [completePolygon, redo, removeSelected, undo]);
+  }, [activeLevelId, completePolygon, document.elements, duplicateSelected, redo, removeSelected, undo]);
 
   useEffect(() => {
     if (saved) return;
@@ -289,8 +325,47 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     return { x: point.x, y: point.y };
   }
 
+  function snappedPoint(point: { x: number; y: number }) {
+    if (!snapEnabled) return point;
+    return { x: Math.round(point.x), y: Math.round(point.y) };
+  }
+
+  function fitViewport(nextDocument = document) {
+    setViewport({ x: 0, y: 0, width: nextDocument.widthM, height: nextDocument.heightM });
+  }
+
+  function zoomAt(clientX: number, clientY: number, factor: number) {
+    const matrix = board.current?.getScreenCTM();
+    if (!matrix) return;
+    const anchor = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+    setViewport((current) => {
+      const width = Math.max(document.widthM * .15, Math.min(document.widthM * 2, current.width / factor));
+      const height = width * document.heightM / document.widthM;
+      const ratio = width / current.width;
+      return { x: anchor.x - (anchor.x - current.x) * ratio, y: anchor.y - (anchor.y - current.y) * ratio, width, height };
+    });
+  }
+
+  function zoomBy(factor: number) {
+    setViewport((current) => {
+      const width = Math.max(document.widthM * .15, Math.min(document.widthM * 2, current.width / factor));
+      const height = width * document.heightM / document.widthM;
+      return { x: current.x + (current.width - width) / 2, y: current.y + (current.height - height) / 2, width, height };
+    });
+  }
+
+  function boardWheel(event: ReactWheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.15 : 1 / 1.15);
+  }
+
   function boardPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
-    const point = worldPoint(event);
+    if (tool === "pan") {
+      pan.current = { clientX: event.clientX, clientY: event.clientY, before: viewport };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+    const point = snappedPoint(worldPoint(event));
     if (tool === "polygon") { setDraftPolygon((points) => [...points, point]); return; }
     if (tool === "seat" && selected) {
       const manualNumbers = selected.seatOverrides?.filter((seat) => seat.row === "M" && !seat.deleted).map((seat) => Number(seat.number)).filter(Number.isFinite) ?? [];
@@ -314,10 +389,23 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     if (event.target === event.currentTarget) setSelectedIds([]);
   }
 
+  function movePan(event: ReactPointerEvent<SVGSVGElement>) {
+    const active = pan.current;
+    const matrix = board.current?.getScreenCTM();
+    if (!active || !matrix) return;
+    const start = new DOMPoint(active.clientX, active.clientY).matrixTransform(matrix.inverse());
+    const current = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    setViewport({ ...active.before, x: active.before.x - (current.x - start.x), y: active.before.y - (current.y - start.y) });
+  }
+
+  function endPan() {
+    pan.current = null;
+  }
+
   function startDrag(event: ReactPointerEvent<SVGPolygonElement>, element: VenueElement) {
     if (tool !== "select" || element.locked || document.levels.find((level) => level.id === element.levelId)?.locked) return;
     event.stopPropagation();
-    const point = worldPoint(event);
+    const point = snappedPoint(worldPoint(event));
     const nextSelection = event.shiftKey ? (selectedIds.includes(element.id) ? selectedIds.filter((id) => id !== element.id) : [...selectedIds, element.id]) : selectedIds.includes(element.id) ? selectedIds : [element.id];
     setSelectedIds(nextSelection);
     const originals = new Map(document.elements.filter((item) => nextSelection.includes(item.id)).map((item) => [item.id, structuredClone(item)]));
@@ -328,7 +416,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   function moveDrag(event: ReactPointerEvent<SVGPolygonElement>) {
     const active = drag.current;
     if (!active) return;
-    const point = worldPoint(event);
+    const point = snappedPoint(worldPoint(event));
     const dx = point.x - active.startX;
     const dy = point.y - active.startY;
     if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) active.moved = true;
@@ -363,8 +451,8 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   function moveVertexDrag(event: ReactPointerEvent<SVGCircleElement>) {
     const active = vertexDrag.current;
     if (!active) return;
-    const point = worldPoint(event);
-    setDocument((current) => ({ ...current, elements: current.elements.map((element) => element.id === active.elementId ? { ...element, polygon: element.polygon.map((vertex, index) => index === active.vertexIndex ? point : vertex) } : element) }));
+    const point = snappedPoint(worldPoint(event));
+    setDocument((current) => ({ ...current, elements: current.elements.map((element) => element.id === active.elementId ? { ...element, geometry: undefined, polygon: element.polygon.map((vertex, index) => index === active.vertexIndex ? point : vertex) } : element) }));
     setSaved(false);
   }
 
@@ -389,9 +477,15 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   function updateBounds(key: "x" | "y" | "width" | "height", value: number) {
     if (!selected || !selectedBounds || !Number.isFinite(value)) return;
     const old = selectedBounds;
-    const next = { ...old, [key]: value };
-    const polygon = selected.polygon.map((point) => ({ x: next.x + (point.x - old.x) / (old.width || 1) * next.width, y: next.y + (point.y - old.y) / (old.height || 1) * next.height }));
-    updateElement({ polygon });
+    const next = { ...old, [key]: key === "width" || key === "height" ? Math.max(.5, value) : value };
+    const transform = (point: { x: number; y: number }) => ({ x: next.x + (point.x - old.x) / (old.width || 1) * next.width, y: next.y + (point.y - old.y) / (old.height || 1) * next.height });
+    const scaleX = next.width / (old.width || 1);
+    const scaleY = next.height / (old.height || 1);
+    updateElement({
+      polygon: selected.polygon.map(transform),
+      geometry: selected.geometry ? { ...selected.geometry, center: transform(selected.geometry.center), innerWidthM: selected.geometry.innerWidthM * scaleX, outerWidthM: selected.geometry.outerWidthM * scaleX, innerHeightM: selected.geometry.innerHeightM * scaleY, outerHeightM: selected.geometry.outerHeightM * scaleY, cornerRadiusM: selected.geometry.cornerRadiusM === undefined ? undefined : selected.geometry.cornerRadiusM * Math.min(scaleX, scaleY) } : undefined,
+      seatOverrides: selected.seatOverrides?.map((seat) => ({ ...seat, ...transform(seat) })),
+    });
   }
 
   function addLevel() {
@@ -426,6 +520,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       rings: document.levels.map((level) => ({ name: level.name, sectorCount: level.ring?.sectorCount })),
     });
     commit(next);
+    fitViewport(next);
     setActiveLevelId(next.levels[0].id);
     setSelectedIds([]);
   }
@@ -503,6 +598,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     try {
       const next = generateVenueDocument(venueKind, setupCapacity, setupLevels, { shape: setupShape, capacityMode: setupCapacityMode, outerWidthM: setupOuterWidth, outerHeightM: setupOuterHeight, fieldWidthM: setupFieldWidth, fieldHeightM: setupFieldHeight, rings: setupRings });
       setDocument(next);
+      fitViewport(next);
       setActiveLevelId(next.levels[0].id);
       setPast([]);
       setFuture([]);
@@ -570,7 +666,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[#0e1213] shadow-[0_28px_90px_-40px_rgba(0,0,0,.85)]">
       <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#d1e66a] text-[#101314]"><BuildingsIcon size={20} weight="fill" /></span><div className="min-w-0"><input value={name} onChange={(event) => { setName(event.target.value); setSaved(false); }} className="w-full min-w-0 bg-transparent text-sm font-semibold text-white outline-none" aria-label="Nome struttura" /><p className="mt-0.5 font-mono text-[9px] uppercase tracking-[.15em] text-[#68716f]">{totalSeats.toLocaleString("it-IT")} POSTI · {document.levels.length} LIVELLI · {document.widthM} × {document.heightM} M</p></div></div>
-        <div className="flex items-center gap-2"><button type="button" onClick={undo} disabled={!past.length} className="editor-icon" aria-label="Annulla ultima modifica" title="Annulla ultima modifica"><ArrowUDownLeftIcon size={17} /></button><button type="button" onClick={redo} disabled={!future.length} className="editor-icon" aria-label="Ripeti modifica" title="Ripeti modifica"><ArrowUUpRightIcon size={17} /></button><button type="button" onClick={() => void save()} disabled={saving || saved} className="flex h-10 items-center gap-2 rounded-full bg-[#d1e66a] px-4 text-xs font-semibold text-[#101314] transition active:scale-[.98] disabled:bg-white/5 disabled:text-[#697170]"><FloppyDiskIcon size={16} weight="bold" />{saving ? "Salvataggio…" : saved ? "Modifiche salvate" : "Salva modifiche"}</button></div>
+        <div className="flex items-center gap-2"><button type="button" onClick={undo} disabled={!past.length} className="editor-icon" aria-label="Annulla ultima modifica" title="Annulla ultima modifica"><ArrowUDownLeftIcon size={17} /></button><button type="button" onClick={redo} disabled={!future.length} className="editor-icon" aria-label="Ripeti modifica" title="Ripeti modifica"><ArrowUUpRightIcon size={17} /></button><button type="button" onClick={duplicateSelected} disabled={!selectedIds.length} className="editor-icon" aria-label="Duplica selezione" title="Duplica selezione (Ctrl+D)"><CopyIcon size={16} /></button><button type="button" onClick={() => void save()} disabled={saving || saved} className="flex h-10 items-center gap-2 rounded-full bg-[#d1e66a] px-4 text-xs font-semibold text-[#101314] transition active:scale-[.98] disabled:bg-white/5 disabled:text-[#697170]"><FloppyDiskIcon size={16} weight="bold" />{saving ? "Salvataggio…" : saved ? "Modifiche salvate" : "Salva modifiche"}</button></div>
       </div>
 
       <div className="grid gap-2 border-b border-white/10 bg-[#0b0e0f] px-4 py-3 text-[10px] text-[#8e9794] sm:grid-cols-4 sm:px-5">
@@ -581,6 +677,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
         <aside className="border-b border-white/10 bg-[#101415] p-4 xl:border-b-0 xl:border-r">
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">
             <button type="button" onClick={() => setTool("select")} className={`editor-tool ${tool === "select" ? "editor-tool-active" : ""}`}><SelectionIcon size={18} />Seleziona e modifica</button>
+            <button type="button" onClick={() => setTool("pan")} className={`editor-tool ${tool === "pan" ? "editor-tool-active" : ""}`}><HandIcon size={18} />Sposta la tavola</button>
             <button type="button" onClick={() => { setTool("polygon"); setDraftPolygon([]); }} className={`editor-tool ${tool === "polygon" ? "editor-tool-active" : ""}`}><PencilSimpleLineIcon size={18} />Disegna un&apos;area</button>
             <button type="button" onClick={() => setTool("seat")} disabled={!selected || !seatedKinds.has(selected.kind)} title={!selected || !seatedKinds.has(selected.kind) ? "Seleziona prima un settore, una tribuna o un blocco posti" : "Aggiungi singoli posti sulla pianta"} className={`editor-tool ${tool === "seat" ? "editor-tool-active" : ""}`}><ChairIcon size={18} />Aggiungi un posto</button>
             <button type="button" onClick={() => setShowMap(true)} className="editor-tool"><MapPinIcon size={18} />Importa da mappa</button>
@@ -589,13 +686,15 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
           <p className="mb-2 mt-6 font-mono text-[9px] uppercase tracking-[.18em] text-[#616967]">AGGIUNGI ELEMENTO</p>
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">{visibleElementTools.map(({ kind, label, icon: Icon }) => <button key={kind} type="button" onClick={() => addElement(kind)} title={`Scegli dove inserire ${label.toLowerCase()}`} className={`editor-tool ${tool === "place" && pendingElementKind === kind ? "editor-tool-active" : ""}`}><Icon size={17} />{label}</button>)}</div>
           <button type="button" onClick={() => setShowAdvancedElements((value) => !value)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/8 px-3 py-2.5 text-[10px] text-[#858d8b] transition hover:border-white/20 hover:text-white" aria-expanded={showAdvancedElements}><CaretDownIcon size={14} className={`transition ${showAdvancedElements ? "rotate-180" : ""}`} />{showAdvancedElements ? "Nascondi elementi avanzati" : "Mostra altri elementi"}</button>
+          <div className="mt-6 border-t border-white/8 pt-4"><div className="flex items-center justify-between"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#616967]">OGGETTI · {document.levels.find((level) => level.id === activeLevelId)?.name}</p><button type="button" onClick={() => setSelectedIds(document.elements.filter((element) => element.levelId === activeLevelId && !element.hidden).map((element) => element.id))} className="text-[8px] text-[#d1e66a]">SELEZIONA TUTTI</button></div><div className="mt-2 max-h-44 space-y-1 overflow-y-auto">{document.elements.filter((element) => element.levelId === activeLevelId && element.parentId !== "__cadastral_boundary__").map((element) => <button type="button" key={element.id} onClick={(event) => setSelectedIds(event.shiftKey ? [...new Set([...selectedIds, element.id])] : [element.id])} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] ${selectedIds.includes(element.id) ? "bg-[#d1e66a]/10 text-[#d1e66a]" : "bg-white/[.02] text-[#969e9c] hover:bg-white/[.05]"}`}><span className="min-w-0 flex-1 truncate">{element.label}</span>{element.locked && <LockIcon size={11} />}</button>)}</div></div>
           <div className="mt-6 border-t border-white/8 pt-4"><label className="grid gap-2 text-[10px] text-[#858d8b]">Tipo struttura<select value={venueKind} onChange={(event) => setVenueKind(event.target.value as StoredVenue["kind"])} className="h-10 rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white"><option value="stadium">Stadio</option><option value="arena">Palazzetto</option><option value="concert">Concerto</option><option value="square">Piazza</option><option value="outdoor">Area esterna</option><option value="fairground">Fiera</option><option value="custom">Personalizzata</option></select></label><button type="button" onClick={regenerate} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#e2a65a]/20 text-xs text-[#c7a56f] transition hover:bg-[#e2a65a]/8 hover:text-white" title="Sostituisce la pianta attuale con una nuova base automatica"><ArrowCounterClockwiseIcon size={16} />Rigenera tutta la pianta</button><p className="mt-2 text-[9px] leading-4 text-[#68716f]">Azione avanzata: sostituisce gli elementi attuali dopo una conferma.</p></div>
         </aside>
 
         <section className="relative min-h-[560px] overflow-hidden bg-[#0b0e0f] surface-grid">
           <div className="absolute left-4 top-4 z-[2] flex flex-wrap gap-2"><button type="button" onClick={() => setShowAllRings((value) => !value)} className={`rounded-full border px-3 py-1.5 font-mono text-[9px] backdrop-blur ${showAllRings ? "border-[#d1e66a]/30 bg-[#d1e66a]/10 text-[#d1e66a]" : "border-white/10 bg-[#0c1011]/90 text-[#aab1af]"}`}>{showAllRings ? "TUTTI GLI ANELLI" : `SOLO ${document.levels.find((level) => level.id === activeLevelId)?.name.toUpperCase()}`}</button>{document.boundary && <span className="rounded-full border border-[#d1e66a]/25 bg-[#d1e66a]/10 px-3 py-1.5 font-mono text-[9px] text-[#d1e66a]">CONFINE CATASTALE COLLEGATO</span>}{outsideCount > 0 && <span className="rounded-full border border-[#e2a65a]/25 bg-[#e2a65a]/10 px-3 py-1.5 font-mono text-[9px] text-[#e2a65a]">{outsideCount} FUORI CONFINE</span>}</div>
+          <div className="absolute right-4 top-4 z-[3] flex items-center rounded-full border border-white/10 bg-[#0c1011]/90 p-1 backdrop-blur"><button type="button" onClick={() => setSnapEnabled((value) => !value)} className={`h-7 rounded-full px-2.5 font-mono text-[8px] ${snapEnabled ? "bg-[#d1e66a]/12 text-[#d1e66a]" : "text-[#7b8381]"}`} aria-pressed={snapEnabled}>SNAP {snapEnabled ? "ON" : "OFF"}</button><button type="button" onClick={() => zoomBy(1 / 1.2)} className="editor-mini" aria-label="Riduci zoom"><MagnifyingGlassMinusIcon size={13} /></button><button type="button" onClick={() => fitViewport()} className="h-7 rounded-full px-2 font-mono text-[8px] text-[#aab1af]">ADATTA</button><button type="button" onClick={() => zoomBy(1.2)} className="editor-mini" aria-label="Aumenta zoom"><MagnifyingGlassPlusIcon size={13} /></button></div>
           <div className="absolute inset-4 top-16 overflow-hidden rounded-[26px] border border-white/10 bg-[#111617] shadow-[inset_0_0_80px_rgba(0,0,0,.28)] sm:inset-6 sm:top-16">
-            <svg ref={board} viewBox={`0 0 ${document.widthM} ${document.heightM}`} preserveAspectRatio="xMidYMid meet" onPointerDown={boardPointerDown} className={`absolute inset-0 size-full touch-none ${tool === "place" ? "cursor-crosshair" : ""}`} aria-label="Tavola 2D della struttura">
+            <svg ref={board} viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`} preserveAspectRatio="xMidYMid meet" onWheel={boardWheel} onPointerDown={boardPointerDown} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan} className={`absolute inset-0 size-full touch-none ${tool === "place" ? "cursor-crosshair" : tool === "pan" ? "cursor-grab active:cursor-grabbing" : ""}`} aria-label="Tavola 2D della struttura">
               {document.elements.filter((element) => {
                 const level = document.levels.find((item) => item.id === element.levelId);
                 return !element.hidden && !level?.hidden && (element.scope === "shared" || element.parentId === "__cadastral_boundary__" || (showAllRings ? level?.role === "ring" : element.levelId === activeLevelId));
@@ -608,14 +707,14 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
               })}
               {draftPolygon.length > 0 && <polyline points={draftPolygon.map((point) => `${point.x},${point.y}`).join(" ")} fill="rgba(209,230,106,.08)" stroke="#d1e66a" strokeWidth=".7" strokeDasharray="2 2" />}
             </svg>
-            <SeatLayer document={document} levelId={activeLevelId} showAllRings={showAllRings} />
+            <SeatLayer document={document} levelId={activeLevelId} showAllRings={showAllRings} viewport={viewport} />
           </div>
           {tool === "polygon" && <div className="absolute bottom-5 left-1/2 z-[3] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#0b0e0f]/95 p-1.5 pl-4 text-[10px] text-[#aab1af] backdrop-blur-xl"><span>Clicca i vertici, poi completa</span><button type="button" onClick={completePolygon} disabled={draftPolygon.length < 3} className="rounded-full bg-[#d1e66a] px-3 py-1.5 font-semibold text-[#101314] disabled:opacity-30">Completa</button><button type="button" onClick={() => { setDraftPolygon([]); setTool("select"); }} className="grid size-7 place-items-center rounded-full hover:bg-white/5" aria-label="Annulla forma"><XIcon size={14} /></button></div>}
         </section>
 
         <aside className="border-t border-white/10 bg-[#101415] p-4 xl:border-l xl:border-t-0">
           <div className="flex items-center justify-between"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">VERSIONE DELLA PIANTA</p><p className="mt-1 text-[9px] text-[#68716f]">Crea varianti senza perdere l&apos;originale.</p></div>{initialVenue && <button type="button" onClick={() => void duplicateLayout()} className="editor-icon" aria-label="Crea una copia della configurazione" title="Crea una copia"><CopyIcon size={15} /></button>}</div>
-          {layouts.length > 0 && <select value={layoutId} aria-label="Configurazione da modificare" onChange={(event) => { const layout = layouts.find((item) => item.id === event.target.value); if (!layout) return; if (!saved && !window.confirm("Hai modifiche non salvate. Vuoi cambiare configurazione e perderle?")) return; setLayoutId(layout.id); setLayoutName(layout.name); const next = parseDocument(layout); setDocument(next); setActiveLevelId(next.levels[0].id); setSelectedIds([]); setPast([]); setFuture([]); setError(""); setSaved(true); }} className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white">{layouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name} · v{layout.version}</option>)}</select>}
+          {layouts.length > 0 && <select value={layoutId} aria-label="Configurazione da modificare" onChange={(event) => { const layout = layouts.find((item) => item.id === event.target.value); if (!layout) return; if (!saved && !window.confirm("Hai modifiche non salvate. Vuoi cambiare configurazione e perderle?")) return; setLayoutId(layout.id); setLayoutName(layout.name); const next = parseDocument(layout); setDocument(next); fitViewport(next); setActiveLevelId(next.levels[0].id); setSelectedIds([]); setPast([]); setFuture([]); setError(""); setSaved(true); }} className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white">{layouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name} · v{layout.version}</option>)}</select>}
           <input value={layoutName} onChange={(event) => { setLayoutName(event.target.value); setSaved(false); }} className="mt-2 h-10 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white" aria-label="Nome configurazione" />
 
           <div className="mt-6 flex items-center justify-between"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">LIVELLI</p><button type="button" onClick={addLevel} className="editor-icon" aria-label="Aggiungi livello"><PlusIcon size={14} /></button></div>
