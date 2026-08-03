@@ -1,0 +1,104 @@
+export type Point2D = { x: number; y: number };
+export type VenueKind = "stadium" | "arena" | "concert" | "square" | "outdoor" | "fairground" | "custom";
+export type ElementKind = "sector" | "stand" | "curve" | "block" | "field" | "stage" | "runway" | "entrance" | "exit" | "aisle" | "barrier" | "technical-area" | "standing-area" | "accessible-area" | "free-area";
+export type VenueLevel = { id: string; name: string; order: number; elevationM?: number; hidden?: boolean; locked?: boolean };
+export type VenueElement = {
+  id: string;
+  kind: ElementKind;
+  label: string;
+  polygon: Point2D[];
+  levelId?: string;
+  parentId?: string;
+  rotation?: number;
+  locked?: boolean;
+  hidden?: boolean;
+  dimensionsM?: { width?: number; height?: number; radius?: number };
+  rows?: number;
+  seatsPerRow?: number;
+  rowStyle?: "straight" | "curved";
+  seatOverrides?: Array<{ id: string; row: string; number: string; x: number; y: number; accessible?: boolean; deleted?: boolean }>;
+};
+export type VenueDocument = { schemaVersion: 2; unit: "m"; widthM: number; heightM: number; levels: VenueLevel[]; elements: VenueElement[]; boundary?: { type: string; coordinates: unknown[] }; cadastralSources?: Array<Record<string, unknown>> };
+export type StoredLayout = { id: string; name: string; version: number; is_default: boolean; capacity: number; document: VenueDocument | string };
+export type StoredVenue = { id: string; name: string; kind: VenueKind; capacity: number; map: unknown };
+
+export function polygonBounds(polygon: Point2D[]) {
+  const xs = polygon.map((point) => point.x);
+  const ys = polygon.map((point) => point.y);
+  return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+}
+
+export function rectangle(x: number, y: number, width: number, height: number): Point2D[] {
+  return [{ x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }];
+}
+
+function geographicRings(boundary?: VenueDocument["boundary"]): number[][][] {
+  if (!boundary || !Array.isArray(boundary.coordinates)) return [];
+  if (boundary.type === "Polygon") return [((boundary.coordinates as unknown[])[0] as number[][] | undefined) ?? []];
+  if (boundary.type === "MultiPolygon") return (boundary.coordinates as unknown[]).map((polygon) => ((polygon as unknown[])[0] as number[][] | undefined) ?? []);
+  return [];
+}
+
+export function projectGeoBoundaryRings(boundary: VenueDocument["boundary"], widthM: number, heightM: number): Point2D[][] {
+  const rings = geographicRings(boundary).filter((ring) => ring.length >= 3);
+  const coordinates = rings.flat();
+  if (coordinates.length === 0) return [];
+  const averageLatitude = coordinates.reduce((sum, coordinate) => sum + coordinate[1], 0) / coordinates.length;
+  const scaleLongitude = Math.max(.2, Math.cos(averageLatitude * Math.PI / 180));
+  const xs = coordinates.map((coordinate) => coordinate[0] * scaleLongitude);
+  const ys = coordinates.map((coordinate) => coordinate[1]);
+  const minX = Math.min(...xs); const maxX = Math.max(...xs); const minY = Math.min(...ys); const maxY = Math.max(...ys);
+  const rawWidth = Math.max(1e-9, maxX - minX); const rawHeight = Math.max(1e-9, maxY - minY);
+  const scale = Math.min(widthM * .86 / rawWidth, heightM * .86 / rawHeight);
+  const renderedWidth = rawWidth * scale; const renderedHeight = rawHeight * scale;
+  const offsetX = (widthM - renderedWidth) / 2; const offsetY = (heightM - renderedHeight) / 2;
+  return rings.map((ring) => ring.map((coordinate) => ({ x: offsetX + (coordinate[0] * scaleLongitude - minX) * scale, y: offsetY + (maxY - coordinate[1]) * scale })));
+}
+
+export function pointInLocalPolygon(point: Point2D, polygon: Point2D[]): boolean {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index]; const previousPoint = polygon[previous];
+    const crosses = (currentPoint.y > point.y) !== (previousPoint.y > point.y) && point.x < (previousPoint.x - currentPoint.x) * (point.y - currentPoint.y) / ((previousPoint.y - currentPoint.y) || Number.EPSILON) + currentPoint.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+export function generateVenueDocument(kind: VenueKind, capacity: number, levelsCount = 1): VenueDocument {
+  const widthM = kind === "stadium" ? 220 : kind === "arena" ? 130 : 180;
+  const heightM = kind === "stadium" ? 170 : kind === "arena" ? 100 : 130;
+  const levels = Array.from({ length: levelsCount }, (_, index) => ({ id: `template-level-${index + 1}`, name: levelsCount === 1 ? "Piano terra" : `Anello ${index + 1}`, order: index, elevationM: index * 8 }));
+  const sectorCount = Math.max(4, Math.min(32, Math.ceil(Math.max(capacity, 200) / 900)));
+  const perLevel = Math.ceil(sectorCount / levels.length);
+  const elements: VenueElement[] = [];
+  levels.forEach((level, levelIndex) => {
+    const count = Math.min(perLevel, sectorCount - levelIndex * perLevel);
+    for (let index = 0; index < count; index += 1) {
+      const angle = (index / Math.max(1, count)) * Math.PI * 2;
+      const cx = widthM / 2 + Math.cos(angle) * widthM * 0.37;
+      const cy = heightM / 2 + Math.sin(angle) * heightM * 0.37;
+      const width = kind === "arena" ? 24 : 34;
+      const height = kind === "arena" ? 13 : 18;
+      const seats = Math.ceil(capacity / Math.max(1, sectorCount));
+      elements.push({ id: `template-sector-${levelIndex + 1}-${index + 1}`, kind: "sector", label: `Settore ${levelIndex + 1}.${index + 1}`, levelId: level.id, polygon: rectangle(cx - width / 2, cy - height / 2, width, height), rotation: angle * 180 / Math.PI + 90, rows: Math.max(1, Math.ceil(seats / 40)), seatsPerRow: Math.min(40, seats), rowStyle: "curved" });
+    }
+  });
+  const primary = kind === "concert" || kind === "square" || kind === "outdoor" || kind === "fairground" ? "stage" : "field";
+  elements.push({ id: `template-${primary}`, kind: primary, label: primary === "stage" ? "Palco" : "Campo", levelId: levels[0].id, polygon: rectangle(widthM * 0.34, heightM * 0.34, widthM * 0.32, heightM * 0.32) });
+  return { schemaVersion: 2, unit: "m", widthM, heightM, levels, elements };
+}
+
+export function countSeats(document: VenueDocument): number {
+  return document.elements.reduce((total, element) => {
+    const generated = new Set<string>();
+    for (let row = 1; row <= Math.max(0, element.rows ?? 0); row += 1) {
+      for (let seat = 1; seat <= Math.max(0, element.seatsPerRow ?? 0); seat += 1) generated.add(`${row}-${seat}`);
+    }
+    const active = new Set(element.seatOverrides?.filter((seat) => !seat.deleted).map((seat) => `${seat.row}-${seat.number}`) ?? []);
+    const deleted = new Set(element.seatOverrides?.filter((seat) => seat.deleted).map((seat) => `${seat.row}-${seat.number}`) ?? []);
+    for (const key of deleted) if (!active.has(key)) generated.delete(key);
+    for (const key of active) generated.add(key);
+    return total + generated.size;
+  }, 0);
+}
