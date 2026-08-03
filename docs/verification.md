@@ -1,8 +1,23 @@
 # Verifica onePixel
 
-Ultimo collaudo locale: 31 luglio 2026.
+Ultimo collaudo locale: 3 agosto 2026.
 
 ## Controlli superati
+
+- Rilancio dashboard del 3 agosto: panoramica operativa derivata dagli stati reali
+  evento/pacchetto/presenza, prossime azioni per stato, riepilogo strutture ed eventi,
+  stati vuoti per profilo e console superadmin; rimossi “LIVE TEST”, “ORG LIVE” e
+  “tutti i sistemi nominali” quando non sostenuti da una verifica reale.
+- Ciclo configurazioni venue: migrazione `006_venue_layout_lifecycle.sql`, scelta della
+  configurazione predefinita, archivio e ripristino. Sono vietati archivio della
+  predefinita, archivio dell'ultima configurazione attiva e uso di una configurazione
+  archiviata per creare un nuovo evento.
+- Verifica corrente: 8 file e 44 test control-plane superati, build TypeScript,
+  autenticazione form, ESLint e build Next.js con 20 route superati. Smoke runtime con
+  database temporaneo: login organizzazione, `/dashboard` ed editor HTTP 200; cambio
+  predefinita, archivio, ripristino e ripristino della predefinita tutti HTTP 200 via
+  proxy dashboard. Il QA visuale corrente a 390/768/1440 px resta aperto perché i due
+  browser isolati non erano disponibili nella sessione.
 
 - Control-plane: 4 file e 24 test API/DB superati; build TypeScript riuscita. Copertura di ruoli, pagamenti e consumo singolo, upgrade, account partecipante, notifiche, QR singolo/massivo, precedenza QR sul GPS, geofence, catasto, media, backup/ripristino, realtime e tracciamento dell'ultimo accesso amministratore.
 - Dashboard: ESLint e build Next.js di produzione riusciti; 20 route generate, incluse editor, wizard evento, regia, upgrade, impostazioni e superadmin. La pagina utenti superadmin è stata verificata a runtime dopo la migrazione `last_login_at`.

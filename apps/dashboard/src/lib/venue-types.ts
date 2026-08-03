@@ -18,7 +18,7 @@ export type ElementKind = VenueElementKind;
 export type VenueLevel = ProtocolVenueLevel;
 export type VenueElement = ProtocolVenueElement;
 export type VenueDocument = VenueDocumentV3;
-export type StoredLayout = { id: string; name: string; version: number; is_default: boolean; capacity: number; document: ProtocolVenueDocument | string };
+export type StoredLayout = { id: string; name: string; version: number; is_default: boolean; capacity: number; document: ProtocolVenueDocument | string; archived_at?: string | null };
 export type StoredVenue = { id: string; name: string; kind: VenueKind; capacity: number; map: unknown };
 export type VenueGenerationOptions = {
   shape?: Exclude<VenuePlanShapeKind, "custom">;

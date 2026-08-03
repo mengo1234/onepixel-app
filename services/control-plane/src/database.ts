@@ -22,6 +22,7 @@ const migrationFiles = [
   new URL("./migrations/003_operational_completion.sql", import.meta.url),
   new URL("./migrations/004_user_login_tracking.sql", import.meta.url),
   new URL("./migrations/005_parade_route_operations.sql", import.meta.url),
+  new URL("./migrations/006_venue_layout_lifecycle.sql", import.meta.url),
 ];
 
 async function applyMigrations(database: Database): Promise<void> {

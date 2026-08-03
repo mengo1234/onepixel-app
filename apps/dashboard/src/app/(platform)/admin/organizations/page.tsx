@@ -19,6 +19,7 @@ export default async function OrganizationsPage() {
         <table className="w-full min-w-[800px] border-collapse text-left">
           <thead><tr className="border-b border-white/8 font-mono text-[9px] uppercase tracking-[0.15em] text-[#697170]"><th className="px-5 py-4 font-medium">Organizzazione</th><th className="px-5 py-4 font-medium">Licenza</th><th className="px-5 py-4 font-medium">Eventi</th><th className="px-5 py-4 font-medium">Dispositivi</th><th className="px-5 py-4 font-medium">Stato</th><th className="px-5 py-4" /></tr></thead>
           <tbody className="divide-y divide-white/8">
+            {organizations.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-xs text-[#737b79]">Nessuna organizzazione creata. Usa il pulsante in alto per aggiungere il primo cliente.</td></tr>}
             {organizations.map((organization) => (
               <tr key={organization.name} className="transition hover:bg-white/[0.025]">
                 <td className="px-5 py-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-white/[0.045] text-[#d1e66a]"><BuildingsIcon size={18} /></span><div><p className="text-sm font-medium text-white">{organization.name}</p><p className="mt-1 text-[10px] text-[#697170]">{organization.id}</p></div></div></td>

@@ -4,11 +4,11 @@ import {
   BuildingsIcon,
   CalendarBlankIcon,
   ChartLineUpIcon,
-  CommandIcon,
   CreditCardIcon,
   GaugeIcon,
   GearSixIcon,
   SignOutIcon,
+  ShieldCheckIcon,
   UserListIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
@@ -49,7 +49,7 @@ export function PlatformNav({ role, email }: { role: "super_admin" | "organizati
         <BrandMark />
         <div className="flex items-center gap-2 lg:block">
           <span className="rounded-full border border-[#d1e66a]/25 bg-[#d1e66a]/8 px-2.5 py-1 font-mono text-[10px] tracking-[0.16em] text-[#d1e66a] lg:mt-5 lg:inline-flex">
-            {role === "super_admin" ? "CONTROL 01" : "ORG LIVE"}
+            {role === "super_admin" ? "CONTROL 01" : "ORG PANEL"}
           </span>
           <button type="button" onClick={signOut} className="grid size-9 place-items-center rounded-full border border-white/10 text-[#aab1af] lg:hidden" aria-label="Esci dalla regia" title="Esci">
             <SignOutIcon size={17} />
@@ -128,8 +128,8 @@ export function PlatformNav({ role, email }: { role: "super_admin" | "organizati
           <SignOutIcon size={17} className="text-[#727a78]" />
         </button>
         <div className="flex items-center gap-2 px-2 text-[11px] text-[#707876]">
-          <CommandIcon size={14} />
-          Tutti i sistemi nominali
+          <ShieldCheckIcon size={14} />
+          Sessione autenticata
         </div>
       </div>
     </aside>

@@ -9,7 +9,7 @@ export default async function EditVenuePage({ params }: { params: Promise<{ venu
   const venues = await controlPlaneGet<StoredVenue[]>("/v1/venues");
   const venue = venues.find((item) => item.id === venueId);
   if (!venue) notFound();
-  const layouts = await controlPlaneGet<StoredLayout[]>(`/v1/venues/${venueId}/layouts`);
+  const layouts = await controlPlaneGet<StoredLayout[]>(`/v1/venues/${venueId}/layouts?includeArchived=true`);
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Editor guidato 2D" title={`Modifica ${venue.name}.`} description="Scegli uno strumento, tocca la pianta, personalizza e salva. Livelli, tribune, righe e singoli posti restano sempre modificabili." />

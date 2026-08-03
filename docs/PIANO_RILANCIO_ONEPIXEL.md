@@ -12,10 +12,16 @@ Data audit: 3 agosto 2026
   anello, proporzioni corrette, zoom, pan, zoom-to-fit, snap, duplicazione, selezione
   multipla e pannello oggetti.
 - Dashboard in corso: modifica evento con vincoli per stato, gestione abilitazione
-  utenti superadmin, loading/error globali completati.
-- Verifiche correnti: 43 test control-plane, build TypeScript, lint e build Next.js
-  superati. Il browser grafico isolato non è disponibile nella sessione corrente,
-  quindi il gate visuale/E2E resta aperto.
+  utenti superadmin, loading/error globali, panoramica operativa basata sui dati e
+  stati vuoti amministrativi completati. Rimossi gli indicatori “live/nominale” finti.
+- Configurazioni venue completate con scelta predefinita, archivio, ripristino e
+  protezioni per configurazione predefinita/ultima attiva; i nuovi eventi non possono
+  usare configurazioni archiviate.
+- Verifiche correnti: 44 test control-plane, build TypeScript, test form autenticazione,
+  lint e build Next.js superati. Smoke test runtime completato su login, dashboard,
+  editor e ciclo predefinita → archivio → ripristino. Il browser grafico isolato non è
+  disponibile nella sessione corrente, quindi il gate visuale a 390/768/1440 px resta
+  aperto.
 - Android modificato soltanto per il logo, su richiesta successiva esplicita: icona
   adattiva/legacy onePixel e release `1.1.6+9`. Nessun altro flusso app è stato
   ispezionato o cambiato in questa fase.

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArchiveIcon,
   ArrowCounterClockwiseIcon,
   ArrowUDownLeftIcon,
   ArrowUUpRightIcon,
@@ -25,6 +26,7 @@ import {
   PlusIcon,
   SelectionIcon,
   StairsIcon,
+  StarIcon,
   TrashIcon,
   UsersThreeIcon,
   XIcon,
@@ -178,7 +180,7 @@ function SeatOverridesPanel({ element, onChange, onActivateTool }: { element: Ve
 }
 
 export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenue?: StoredVenue; initialLayouts?: StoredLayout[] }) {
-  const initialLayout = initialLayouts.find((layout) => layout.is_default) ?? initialLayouts[0];
+  const initialLayout = initialLayouts.find((layout) => layout.is_default && !layout.archived_at) ?? initialLayouts.find((layout) => !layout.archived_at);
   const [name, setName] = useState(initialVenue?.name ?? "Nuova struttura");
   const [venueKind, setVenueKind] = useState<StoredVenue["kind"]>(initialVenue?.kind ?? "stadium");
   const [layouts, setLayouts] = useState(initialLayouts);
@@ -193,6 +195,8 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   const [past, setPast] = useState<VenueDocument[]>([]);
   const [future, setFuture] = useState<VenueDocument[]>([]);
   const [saved, setSaved] = useState(true);
+  const [layoutPending, setLayoutPending] = useState(false);
+  const [layoutNotice, setLayoutNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showMap, setShowMap] = useState(false);
@@ -219,6 +223,9 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   const selected = document.elements.find((element) => element.id === selectedIds[0]);
   const selectedBounds = selected ? polygonBounds(selected.polygon) : undefined;
   const totalSeats = useMemo(() => countSeats(document), [document]);
+  const activeLayouts = useMemo(() => layouts.filter((layout) => !layout.archived_at), [layouts]);
+  const archivedLayouts = useMemo(() => layouts.filter((layout) => Boolean(layout.archived_at)), [layouts]);
+  const currentLayout = layouts.find((layout) => layout.id === layoutId);
   const cadastralPolygons = useMemo(() => document.elements.filter((element) => element.parentId === "__cadastral_boundary__").map((element) => element.polygon), [document.elements]);
   const outsideCount = useMemo(() => document.elements.filter((element) => element.parentId !== "__cadastral_boundary__" && element.polygon.some((point) => cadastralPolygons.length > 0 ? !cadastralPolygons.some((polygon) => pointInLocalPolygon(point, polygon)) : point.x < 0 || point.y < 0 || point.x > document.widthM || point.y > document.heightM)).length, [cadastralPolygons, document.elements, document.heightM, document.widthM]);
   const visibleElementTools = showAdvancedElements ? elementTools : elementTools.filter(({ kind }) => primaryElementKinds.has(kind));
@@ -570,6 +577,59 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     setLayoutId(payload.id);
     setLayoutName(nextName);
     setSaved(true);
+    setLayoutNotice("Copia creata. La configurazione originale resta invariata.");
+  }
+
+  function openLayout(layout: StoredLayout) {
+    setLayoutId(layout.id);
+    setLayoutName(layout.name);
+    const next = parseDocument(layout);
+    setDocument(next);
+    fitViewport(next);
+    setActiveLevelId(next.levels[0].id);
+    setSelectedIds([]);
+    setPast([]);
+    setFuture([]);
+    setError("");
+    setSaved(true);
+  }
+
+  async function makeLayoutDefault() {
+    if (!initialVenue || !layoutId) return;
+    if (!saved) { setError("Salva le modifiche prima di cambiare la configurazione predefinita."); return; }
+    setLayoutPending(true);
+    setError("");
+    setLayoutNotice("");
+    try {
+      const response = await fetch(`/api/control/v1/venues/${initialVenue.id}/layouts/${layoutId}/default`, { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message ?? "Configurazione predefinita non aggiornata");
+      setLayouts((items) => items.map((layout) => ({ ...layout, is_default: layout.id === layoutId })));
+      setLayoutNotice("Questa configurazione verrà proposta per prima nei nuovi eventi.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Operazione non riuscita"); }
+    finally { setLayoutPending(false); }
+  }
+
+  async function setLayoutArchived(target: StoredLayout, archived: boolean) {
+    if (!initialVenue) return;
+    if (archived && target.id === layoutId && !saved) { setError("Salva o annulla le modifiche prima di archiviare questa configurazione."); return; }
+    if (archived && !window.confirm(`Archiviare ${target.name}? Gli eventi già creati manterranno la loro copia della pianta.`)) return;
+    setLayoutPending(true);
+    setError("");
+    setLayoutNotice("");
+    try {
+      const response = await fetch(`/api/control/v1/venues/${initialVenue.id}/layouts/${target.id}/archive`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ archived }) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message ?? "Stato configurazione non aggiornato");
+      const changedAt = archived ? new Date().toISOString() : null;
+      setLayouts((items) => items.map((layout) => layout.id === target.id ? { ...layout, archived_at: changedAt, is_default: archived ? false : layout.is_default } : layout));
+      if (archived && target.id === layoutId) {
+        const fallback = layouts.find((layout) => layout.id !== target.id && layout.is_default && !layout.archived_at) ?? layouts.find((layout) => layout.id !== target.id && !layout.archived_at);
+        if (fallback) openLayout(fallback);
+      }
+      setLayoutNotice(archived ? "Configurazione archiviata. Non verrà proposta nei nuovi eventi." : "Configurazione ripristinata e nuovamente disponibile.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Operazione non riuscita"); }
+    finally { setLayoutPending(false); }
   }
 
   function applyCadastre(selection: CadastralSelection, combine: boolean) {
@@ -713,9 +773,12 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
         </section>
 
         <aside className="border-t border-white/10 bg-[#101415] p-4 xl:border-l xl:border-t-0">
-          <div className="flex items-center justify-between"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">VERSIONE DELLA PIANTA</p><p className="mt-1 text-[9px] text-[#68716f]">Crea varianti senza perdere l&apos;originale.</p></div>{initialVenue && <button type="button" onClick={() => void duplicateLayout()} className="editor-icon" aria-label="Crea una copia della configurazione" title="Crea una copia"><CopyIcon size={15} /></button>}</div>
-          {layouts.length > 0 && <select value={layoutId} aria-label="Configurazione da modificare" onChange={(event) => { const layout = layouts.find((item) => item.id === event.target.value); if (!layout) return; if (!saved && !window.confirm("Hai modifiche non salvate. Vuoi cambiare configurazione e perderle?")) return; setLayoutId(layout.id); setLayoutName(layout.name); const next = parseDocument(layout); setDocument(next); fitViewport(next); setActiveLevelId(next.levels[0].id); setSelectedIds([]); setPast([]); setFuture([]); setError(""); setSaved(true); }} className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white">{layouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name} · v{layout.version}</option>)}</select>}
+          <div className="flex items-center justify-between"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">VERSIONE DELLA PIANTA</p><p className="mt-1 text-[9px] text-[#68716f]">Crea varianti senza perdere l&apos;originale.</p></div>{initialVenue && <button type="button" onClick={() => void duplicateLayout()} disabled={layoutPending} className="editor-icon" aria-label="Crea una copia della configurazione" title="Crea una copia"><CopyIcon size={15} /></button>}</div>
+          {activeLayouts.length > 0 && <select value={layoutId} aria-label="Configurazione da modificare" onChange={(event) => { const layout = activeLayouts.find((item) => item.id === event.target.value); if (!layout) return; if (!saved && !window.confirm("Hai modifiche non salvate. Vuoi cambiare configurazione e perderle?")) return; openLayout(layout); setLayoutNotice(""); }} className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white">{activeLayouts.map((layout) => <option key={layout.id} value={layout.id}>{layout.name} · v{layout.version}{layout.is_default ? " · predefinita" : ""}</option>)}</select>}
           <input value={layoutName} onChange={(event) => { setLayoutName(event.target.value); setSaved(false); }} className="mt-2 h-10 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white" aria-label="Nome configurazione" />
+          {currentLayout && <div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => void makeLayoutDefault()} disabled={layoutPending || currentLayout.is_default || !saved} className={`flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-[9px] transition disabled:opacity-45 ${currentLayout.is_default ? "border-[#d1e66a]/25 bg-[#d1e66a]/8 text-[#d1e66a]" : "border-white/10 text-[#aab1af] hover:border-[#d1e66a]/25 hover:text-white"}`}><StarIcon size={13} weight={currentLayout.is_default ? "fill" : "regular"} />{currentLayout.is_default ? "Predefinita" : "Imposta predefinita"}</button><button type="button" onClick={() => void setLayoutArchived(currentLayout, true)} disabled={layoutPending || currentLayout.is_default || activeLayouts.length <= 1} title={currentLayout.is_default ? "Scegli prima un'altra configurazione predefinita" : activeLayouts.length <= 1 ? "Deve restare almeno una configurazione attiva" : "Archivia configurazione"} className="grid size-9 place-items-center rounded-xl border border-white/10 text-[#e2a65a] transition hover:bg-[#e2a65a]/8 disabled:opacity-25" aria-label="Archivia configurazione"><ArchiveIcon size={14} /></button></div>}
+          {layoutNotice && <p role="status" className="mt-2 rounded-xl border border-[#77a4a1]/20 bg-[#77a4a1]/8 p-2.5 text-[9px] leading-4 text-[#9fc7c4]">{layoutNotice}</p>}
+          {archivedLayouts.length > 0 && <details className="mt-3 rounded-xl border border-white/8 bg-white/[.02] p-3"><summary className="cursor-pointer text-[9px] text-[#8f9795]">Archiviate · {archivedLayouts.length}</summary><div className="mt-2 space-y-1">{archivedLayouts.map((layout) => <div key={layout.id} className="flex items-center gap-2 rounded-lg border border-white/6 px-2.5 py-2"><div className="min-w-0 flex-1"><p className="truncate text-[9px] text-[#aab1af]">{layout.name}</p><p className="mt-0.5 font-mono text-[8px] text-[#616967]">v{layout.version} · {layout.capacity.toLocaleString("it-IT")} posti</p></div><button type="button" onClick={() => void setLayoutArchived(layout, false)} disabled={layoutPending} className="rounded-full border border-[#77a4a1]/20 px-2.5 py-1.5 text-[8px] text-[#9fc7c4]">Ripristina</button></div>)}</div></details>}
 
           <div className="mt-6 flex items-center justify-between"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">LIVELLI</p><button type="button" onClick={addLevel} className="editor-icon" aria-label="Aggiungi livello"><PlusIcon size={14} /></button></div>
           <div className="mt-2 space-y-1">{[...document.levels].sort((a, b) => a.order - b.order).map((level) => <div key={level.id} className={`group flex items-center gap-1 rounded-xl border p-1 ${activeLevelId === level.id ? "border-[#d1e66a]/30 bg-[#d1e66a]/8" : "border-transparent"}`}><button type="button" onClick={() => { setActiveLevelId(level.id); setSelectedIds([]); }} className="grid size-8 shrink-0 place-items-center rounded-lg text-[#9ba3a2] hover:bg-white/5" aria-label={`Apri ${level.name}`} aria-pressed={activeLevelId === level.id}><SelectionIcon size={13} /></button><input value={level.name} onChange={(event) => updateLevel(level.id, { name: event.target.value })} className="min-w-0 flex-1 bg-transparent px-1 text-xs text-white outline-none" aria-label="Nome livello" /><button type="button" onClick={() => updateLevel(level.id, { hidden: !level.hidden })} className="editor-mini" aria-label={level.hidden ? "Mostra livello" : "Nascondi livello"}>{level.hidden ? <EyeSlashIcon size={13} /> : <EyeIcon size={13} />}</button><button type="button" onClick={() => updateLevel(level.id, { locked: !level.locked })} className="editor-mini" aria-label={level.locked ? "Sblocca livello" : "Blocca livello"}><LockIcon size={13} /></button><button type="button" onClick={() => deleteLevel(level.id)} disabled={document.levels.length === 1} className="editor-mini text-[#d17667]" aria-label="Elimina livello"><TrashIcon size={13} /></button></div>)}</div>

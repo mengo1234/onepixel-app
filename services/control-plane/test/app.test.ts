@@ -117,6 +117,32 @@ describe.sequential("onePixel control plane", () => {
     expect(layouts.json()[0]).toMatchObject({ id: selfServeLayoutId, is_default: true });
   });
 
+  it("gestisce configurazione predefinita, archivio e ripristino senza perdere versioni", async () => {
+    const current = await app.inject({ method: "GET", url: `/v1/venues/${selfServeVenueId}/layouts`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    const original = current.json().find((layout: { id: string }) => layout.id === selfServeLayoutId);
+    const duplicated = await app.inject({ method: "POST", url: `/v1/venues/${selfServeVenueId}/layouts`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { name: "Piazza serale", document: original.document, isDefault: false } });
+    expect(duplicated.statusCode).toBe(201);
+    const duplicateId = duplicated.json().id as string;
+
+    const defaulted = await app.inject({ method: "PATCH", url: `/v1/venues/${selfServeVenueId}/layouts/${duplicateId}/default`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    expect(defaulted.json()).toMatchObject({ id: duplicateId, isDefault: true });
+    const archived = await app.inject({ method: "PATCH", url: `/v1/venues/${selfServeVenueId}/layouts/${selfServeLayoutId}/archive`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { archived: true } });
+    expect(archived.json()).toMatchObject({ id: selfServeLayoutId, archived: true });
+
+    const activeOnly = await app.inject({ method: "GET", url: `/v1/venues/${selfServeVenueId}/layouts`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    expect(activeOnly.json()).toHaveLength(1);
+    expect(activeOnly.json()[0]).toMatchObject({ id: duplicateId, is_default: true });
+    const includingArchived = await app.inject({ method: "GET", url: `/v1/venues/${selfServeVenueId}/layouts?includeArchived=true`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    expect(includingArchived.json().find((layout: { id: string }) => layout.id === selfServeLayoutId)).toMatchObject({ archived_at: expect.any(String) });
+
+    const restored = await app.inject({ method: "PATCH", url: `/v1/venues/${selfServeVenueId}/layouts/${selfServeLayoutId}/archive`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { archived: false } });
+    expect(restored.json()).toMatchObject({ archived: false });
+    await app.inject({ method: "PATCH", url: `/v1/venues/${selfServeVenueId}/layouts/${selfServeLayoutId}/default`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    const protectedDefault = await app.inject({ method: "PATCH", url: `/v1/venues/${selfServeVenueId}/layouts/${selfServeLayoutId}/archive`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { archived: true } });
+    expect(protectedDefault.statusCode).toBe(409);
+    expect(protectedDefault.json()).toMatchObject({ error: "LAYOUT_DEFAULT_CANNOT_ARCHIVE" });
+  });
+
   it("consuma il pagamento per creare un evento GPS e impedisce di riutilizzarlo", async () => {
     const accessPolicy = { visibility: "public", methods: ["qr", "fixed_geofence", "mobile_radius"], discoveryRadiusM: 4000, mobileRadiusM: 250, fixedGeometry: { type: "Polygon", coordinates: [[[9.12, 45.47], [9.13, 45.47], [9.13, 45.48], [9.12, 45.48], [9.12, 45.47]]] }, geoZones: [{ id: "PIAZZA", label: "Piazza", dwellSeconds: 8, geometry: { type: "Polygon", coordinates: [[[9.12, 45.47], [9.13, 45.47], [9.13, 45.48], [9.12, 45.48], [9.12, 45.47]]] } }] };
     const startsAt = new Date(Date.now() + 30 * 60_000).toISOString();

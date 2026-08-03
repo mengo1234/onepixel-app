@@ -607,7 +607,7 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
   }
 
   async function ensureDefaultLayout(venue: { id: string; organization_id: string; capacity: number; map: { elements?: VenueElement[] } | string }): Promise<{ id: string; document: VenueDocument | string; capacity: number }> {
-    const existing = await one<{ id: string; document: VenueDocument | string; capacity: number }>(database, "SELECT id, document, capacity FROM venue_layouts WHERE venue_id = $1 ORDER BY is_default DESC, updated_at DESC LIMIT 1", [venue.id]);
+    const existing = await one<{ id: string; document: VenueDocument | string; capacity: number }>(database, "SELECT id, document, capacity FROM venue_layouts WHERE venue_id = $1 AND archived_at IS NULL ORDER BY is_default DESC, updated_at DESC LIMIT 1", [venue.id]);
     if (existing) return existing;
     const document = venueDocumentFromLegacy(jsonValue(venue.map), venue.capacity);
     const id = `layout_${randomUUID()}`;
@@ -1105,8 +1105,13 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
   app.get("/v1/venues/:venueId/layouts", async (request) => {
     const { venueId } = z.object({ venueId: z.string() }).parse(request.params);
     const { venue } = await ownedVenue(request, venueId);
+    const query = z.object({ includeArchived: z.enum(["true", "false"]).optional() }).parse(request.query);
+    const includeArchived = query.includeArchived === "true";
     await ensureDefaultLayout(venue);
-    return many(database, "SELECT id, venue_id, name, version, is_default, capacity, document, created_at, updated_at FROM venue_layouts WHERE venue_id = $1 ORDER BY is_default DESC, updated_at DESC", [venueId]);
+    return many(database, `SELECT id, venue_id, name, version, is_default, capacity, document, archived_at, created_at, updated_at
+      FROM venue_layouts
+      WHERE venue_id = $1 AND ($2::boolean = true OR archived_at IS NULL)
+      ORDER BY (archived_at IS NULL) DESC, is_default DESC, updated_at DESC`, [venueId, includeArchived]);
   });
 
   app.post("/v1/venues/:venueId/layouts", async (request, reply) => {
@@ -1131,11 +1136,41 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
     const capacity = countVenueSeats(body.document as VenueDocument);
     const result = await database.transaction(async (transaction) => {
       if (body.isDefault) await transaction.query("UPDATE venue_layouts SET is_default = false WHERE venue_id = $1", [venueId]);
-      return transaction.query("UPDATE venue_layouts SET name = $3, is_default = $4, capacity = $5, document = $6, version = version + 1, updated_at = now() WHERE id = $1 AND venue_id = $2 RETURNING id, version", [layoutId, venueId, body.name, body.isDefault, capacity, JSON.stringify(body.document)]);
+      return transaction.query("UPDATE venue_layouts SET name = $3, is_default = $4, capacity = $5, document = $6, version = version + 1, updated_at = now() WHERE id = $1 AND venue_id = $2 AND archived_at IS NULL RETURNING id, version", [layoutId, venueId, body.name, body.isDefault, capacity, JSON.stringify(body.document)]);
     });
     if (result.rows.length === 0) throw new HttpError(404, "LAYOUT_NOT_FOUND", "Configurazione non trovata");
     await audit(claims, "venue.layout.updated", "venue", venueId, { layoutId, capacity });
     return { id: layoutId, venueId, capacity, document: body.document, version: (result.rows[0] as { version: number }).version, saved: true };
+  });
+
+  app.patch("/v1/venues/:venueId/layouts/:layoutId/default", async (request) => {
+    const { venueId, layoutId } = z.object({ venueId: z.string(), layoutId: z.string() }).parse(request.params);
+    const { claims } = await ownedVenue(request, venueId);
+    const layout = await one<{ id: string }>(database, "SELECT id FROM venue_layouts WHERE id = $1 AND venue_id = $2 AND archived_at IS NULL", [layoutId, venueId]);
+    if (!layout) throw new HttpError(404, "LAYOUT_NOT_FOUND", "Configurazione attiva non trovata");
+    await database.transaction(async (transaction) => {
+      await transaction.query("UPDATE venue_layouts SET is_default = false WHERE venue_id = $1", [venueId]);
+      await transaction.query("UPDATE venue_layouts SET is_default = true, updated_at = now() WHERE id = $1 AND venue_id = $2", [layoutId, venueId]);
+    });
+    await audit(claims, "venue.layout.defaulted", "venue", venueId, { layoutId });
+    return { id: layoutId, venueId, isDefault: true };
+  });
+
+  app.patch("/v1/venues/:venueId/layouts/:layoutId/archive", async (request) => {
+    const { venueId, layoutId } = z.object({ venueId: z.string(), layoutId: z.string() }).parse(request.params);
+    const { claims } = await ownedVenue(request, venueId);
+    const { archived } = z.object({ archived: z.boolean() }).parse(request.body);
+    const layout = await one<{ id: string; is_default: boolean; archived_at?: string | Date }>(database, "SELECT id, is_default, archived_at FROM venue_layouts WHERE id = $1 AND venue_id = $2", [layoutId, venueId]);
+    if (!layout) throw new HttpError(404, "LAYOUT_NOT_FOUND", "Configurazione non trovata");
+    if (archived) {
+      if (layout.archived_at) return { id: layoutId, venueId, archived: true };
+      if (layout.is_default) throw new HttpError(409, "LAYOUT_DEFAULT_CANNOT_ARCHIVE", "Imposta prima un'altra configurazione come predefinita");
+      const active = await one<{ count: number }>(database, "SELECT count(*)::int AS count FROM venue_layouts WHERE venue_id = $1 AND archived_at IS NULL", [venueId]);
+      if ((active?.count ?? 0) <= 1) throw new HttpError(409, "LAYOUT_LAST_ACTIVE", "Deve rimanere almeno una configurazione attiva");
+    }
+    await database.query("UPDATE venue_layouts SET archived_at = CASE WHEN $3 THEN now() ELSE NULL END, is_default = CASE WHEN $3 THEN false ELSE is_default END, updated_at = now() WHERE id = $1 AND venue_id = $2", [layoutId, venueId, archived]);
+    await audit(claims, archived ? "venue.layout.archived" : "venue.layout.restored", "venue", venueId, { layoutId });
+    return { id: layoutId, venueId, archived };
   });
 
   app.post("/v1/geo/cadastre", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request) => {
@@ -1205,7 +1240,7 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
     const venue = await one<{ id: string; capacity: number; organization_id: string; map: { elements?: VenueElement[] } | string }>(database, "SELECT id, capacity, organization_id, map FROM venues WHERE id = $1", [body.venueId]);
     if (!venue || venue.organization_id !== claims.organizationId) throw new HttpError(404, "VENUE_NOT_FOUND", "Struttura non trovata");
     const layout = body.layoutId
-      ? await one<{ id: string; organization_id: string; capacity: number; document: VenueDocument | string }>(database, "SELECT id, organization_id, capacity, document FROM venue_layouts WHERE id = $1 AND venue_id = $2", [body.layoutId, body.venueId])
+      ? await one<{ id: string; organization_id: string; capacity: number; document: VenueDocument | string }>(database, "SELECT id, organization_id, capacity, document FROM venue_layouts WHERE id = $1 AND venue_id = $2 AND archived_at IS NULL", [body.layoutId, body.venueId])
       : await ensureDefaultLayout(venue);
     if (!layout || ("organization_id" in layout && layout.organization_id !== claims.organizationId)) throw new HttpError(404, "LAYOUT_NOT_FOUND", "Configurazione non trovata");
     const payment = await one<{ id: string; participant_limit: number; status: string }>(database, "SELECT id, participant_limit, status FROM event_payments WHERE id = $1 AND organization_id = $2", [body.paymentId, claims.organizationId]);
