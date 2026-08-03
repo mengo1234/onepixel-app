@@ -53,9 +53,9 @@ const copy = {
     pricingEye: 'Prova senza rischi', pricingTitle: 'Tutto il flusso. Zero addebiti.', pricingText: 'La modalità attuale è una demo completa: nessuna carta e nessun addebito. Scegli la capienza e prova subito la creazione guidata.',
     tiers: [['Piccolo', 'Fino a 500 persone', '3 €'], ['Medio', 'Fino a 5.000 persone', '7 €'], ['Grande', 'Oltre 5.000 persone', '19 €']], features: ['QR + GPS', 'Editor completo', 'Regia live'], payFirst: 'MODALITÀ MOCK · NESSUNA CARTA O ADDEBITO', perEvent: '/ evento demo', start: 'Prova dalla dashboard',
     installEye: 'Per il pubblico', installTitle: 'Entra. Inquadra.\nDiventa la scena.', installText: 'Mappa eventi vicini, scanner QR sempre a portata di mano, notifiche, profilo facoltativo e modalità demo offline.',
-    scan: 'Scansiona per scaricare', direct: 'Download diretto APK', release: 'ANDROID 1.1.5 · 77 MB', alpha: 'APK firmato per Android 7 o successivo. Android potrebbe chiedere di autorizzare l’installazione dal browser.',
+    scan: 'Scansiona per scaricare', direct: 'Download diretto APK', release: 'ANDROID 1.1.6 · 81 MB', alpha: 'APK firmato per Android 7 o successivo. Android potrebbe chiedere di autorizzare l’installazione dal browser.',
     installSteps: [['01', 'Scarica', 'Tocca il pulsante o inquadra il QR.'], ['02', 'Autorizza', 'Consenti al browser di installare app.'], ['03', 'Apri onePixel', 'Non serve creare un account.']],
-    releaseEye: 'ULTIMA RELEASE', releaseTitle: 'Versione 1.1.5', releaseNotes: ['Nuovo spazio semicircolare attorno al QR', 'Navigazione Home e Profilo più chiara', 'Tema chiaro e scuro verificati su Android'],
+    releaseEye: 'ULTIMA RELEASE', releaseTitle: 'Versione 1.1.6', releaseNotes: ['Nuovo logo onePixel nell’icona dell’app', 'Navigazione Home e Profilo più chiara', 'Tema chiaro e scuro verificati su Android'],
     footer: 'Sincronizzazione dal vivo per luoghi e folle di ogni forma.',
   },
   en: {
@@ -86,9 +86,9 @@ const copy = {
     pricingEye: 'Try it risk-free', pricingTitle: 'The full flow. Zero charges.', pricingText: 'The current mode is a complete demo: no card and no charge. Choose a capacity and immediately try guided event creation.',
     tiers: [['Small', 'Up to 500 people', '€3'], ['Medium', 'Up to 5,000 people', '€7'], ['Large', 'Over 5,000 people', '€19']], features: ['QR + GPS', 'Full editor', 'Live control room'], payFirst: 'MOCK MODE · NO CARD OR CHARGE', perEvent: '/ demo event', start: 'Try the dashboard',
     installEye: 'For the audience', installTitle: 'Join. Scan.\nBecome the scene.', installText: 'Nearby event map, QR scanner always at hand, notifications, optional profile and an offline demo.',
-    scan: 'Scan to download', direct: 'Direct APK download', release: 'ANDROID 1.1.5 · 77 MB', alpha: 'Signed APK for Android 7 or later. Android may ask you to allow installations from the browser.',
+    scan: 'Scan to download', direct: 'Direct APK download', release: 'ANDROID 1.1.6 · 81 MB', alpha: 'Signed APK for Android 7 or later. Android may ask you to allow installations from the browser.',
     installSteps: [['01', 'Download', 'Tap the button or scan the QR code.'], ['02', 'Allow', 'Let the browser install applications.'], ['03', 'Open onePixel', 'No account is required.']],
-    releaseEye: 'LATEST RELEASE', releaseTitle: 'Version 1.1.5', releaseNotes: ['New semicircular space around the QR button', 'Clearer Home and Profile navigation', 'Light and dark themes verified on Android'],
+    releaseEye: 'LATEST RELEASE', releaseTitle: 'Version 1.1.6', releaseNotes: ['New onePixel logo for the app icon', 'Clearer Home and Profile navigation', 'Light and dark themes verified on Android'],
     footer: 'Live synchronization for venues and crowds of every shape.',
   },
 }
@@ -184,11 +184,11 @@ function App() {
 
       <section className="install shell" id="installa">
         <div className="install-copy"><p className="eyebrow"><span /> {t.installEye}</p><h2>{t.installTitle.split('\n').map((line, i) => <span key={line}>{line}{i === 0 && <br />}</span>)}</h2><p>{t.installText}</p><div className="install-steps">{t.installSteps.map(([number, title, body]) => <article key={number}><b>{number}</b><div><strong>{title}</strong><span>{body}</span></div></article>)}</div><a className="button signal download" href={downloadUrl} download="onePixel-android.apk"><span><small>{t.release}</small>{t.appCta}</span><DownloadSimple size={24} weight="bold" /></a><p className="alpha-note"><ShieldCheck size={15} weight="fill" /> {t.alpha}</p></div>
-        <div className="install-side"><div className="qr-panel"><div className="qr-label"><QrCode size={20} /> {t.scan}<strong>1.1.5</strong></div><img src={`${import.meta.env.BASE_URL}install-qr.png`} alt="QR code for onePixel Android download" /><a href={downloadUrl} download="onePixel-android.apk">{t.direct} <ArrowRight size={16} weight="bold" /></a></div><aside className="release-card"><div><small>{t.releaseEye}</small><strong>{t.releaseTitle}</strong></div><ul>{t.releaseNotes.map((note) => <li key={note}><Check size={15} weight="bold" /> {note}</li>)}</ul></aside></div>
+        <div className="install-side"><div className="qr-panel"><div className="qr-label"><QrCode size={20} /> {t.scan}<strong>1.1.6</strong></div><img src={`${import.meta.env.BASE_URL}install-qr.png`} alt="QR code for onePixel Android download" /><a href={downloadUrl} download="onePixel-android.apk">{t.direct} <ArrowRight size={16} weight="bold" /></a></div><aside className="release-card"><div><small>{t.releaseEye}</small><strong>{t.releaseTitle}</strong></div><ul>{t.releaseNotes.map((note) => <li key={note}><Check size={15} weight="bold" /> {note}</li>)}</ul></aside></div>
       </section>
 
       <footer className="site-footer shell"><PixelMark /><p>{t.footer}</p><span>© 2026 onePixel</span></footer>
-      <a className="mobile-download-bar" href={downloadUrl} download="onePixel-android.apk"><span><small>ANDROID 1.1.5</small>{t.appCta}</span><DownloadSimple size={22} weight="bold" /></a>
+      <a className="mobile-download-bar" href={downloadUrl} download="onePixel-android.apk"><span><small>ANDROID 1.1.6</small>{t.appCta}</span><DownloadSimple size={22} weight="bold" /></a>
     </main>
   )
 }

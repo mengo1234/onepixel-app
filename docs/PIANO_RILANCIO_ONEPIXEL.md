@@ -16,7 +16,9 @@ Data audit: 3 agosto 2026
 - Verifiche correnti: 43 test control-plane, build TypeScript, lint e build Next.js
   superati. Il browser grafico isolato non è disponibile nella sessione corrente,
   quindi il gate visuale/E2E resta aperto.
-- Android non controllato né modificato in questo ciclo, come richiesto.
+- Android modificato soltanto per il logo, su richiesta successiva esplicita: icona
+  adattiva/legacy onePixel e release `1.1.6+9`. Nessun altro flusso app è stato
+  ispezionato o cambiato in questa fase.
 
 ## 1. Obiettivo
 
