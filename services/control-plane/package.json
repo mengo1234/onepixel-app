@@ -1,0 +1,43 @@
+{
+  "name": "@onepixel/control-plane",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "start:compiled": "node dist/services/control-plane/src/server.js",
+    "build": "tsc -p tsconfig.json && node scripts/copy-build-assets.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:load": "tsx scripts/load-test.ts",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
+    "seed": "tsx src/seed.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.0",
+    "@fastify/multipart": "^10.1.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/websocket": "^11.3.0",
+    "@vercel/blob": "^2.6.1",
+    "fastify": "^5.10.0",
+    "fastify-raw-body": "^5.0.0",
+    "ffmpeg-static": "^5.3.0",
+    "google-auth-library": "^10.9.1",
+    "pg": "^8.22.0",
+    "stripe": "^22.4.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/pg": "^8.20.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10",
+    "ws": "^8.21.1"
+  }
+}
