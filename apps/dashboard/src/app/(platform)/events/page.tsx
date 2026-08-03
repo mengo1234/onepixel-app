@@ -27,6 +27,7 @@ export default async function EventsPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 pl-16 md:justify-end md:pl-0">
+              <Link href={`/events/${event.id}/edit`} className="rounded-full border border-white/12 px-4 py-2 text-xs text-[#c1c6c4] transition hover:border-white/30 hover:text-white active:scale-[0.98]">Dettagli evento</Link>
               <Link href={`/events/${event.id}/studio`} className="rounded-full border border-white/12 px-4 py-2 text-xs text-[#c1c6c4] transition hover:border-white/30 hover:text-white active:scale-[0.98]">Modifica effetti</Link>
               <Link href={`/events/${event.id}/live`} className="flex items-center gap-2 rounded-full bg-[#d1e66a] px-4 py-2 text-xs font-semibold text-[#0b0d0e] transition hover:-translate-y-0.5 active:translate-y-px">Apri regia live <ArrowUpRightIcon size={15} weight="bold" /></Link>
             </div>

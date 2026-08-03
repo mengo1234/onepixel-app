@@ -81,6 +81,16 @@ describe.sequential("onePixel control plane", () => {
     ]));
   });
 
+  it("consente al super admin di disabilitare e riabilitare un utente", async () => {
+    const users = await app.inject({ method: "GET", url: "/v1/admin/users", headers: { authorization: `Bearer ${superAdminToken}` } });
+    const target = users.json().find((user: { email: string }) => user.email === "regia@arenanord.it");
+    const disabled = await app.inject({ method: "PATCH", url: `/v1/admin/users/${target.id}`, headers: { authorization: `Bearer ${superAdminToken}` }, payload: { enabled: false } });
+    expect(disabled.statusCode).toBe(200);
+    expect(disabled.json()).toMatchObject({ id: target.id, enabled: false });
+    const enabled = await app.inject({ method: "PATCH", url: `/v1/admin/users/${target.id}`, headers: { authorization: `Bearer ${superAdminToken}` }, payload: { enabled: true } });
+    expect(enabled.json()).toMatchObject({ id: target.id, enabled: true });
+  });
+
   it("registra autonomamente un organizzatore e vende una fascia evento in modalità test", async () => {
     const registration = await app.inject({ method: "POST", url: "/v1/auth/register", payload: { name: "Livia Ferri", organizationName: "Luce Civica", email: "livia@lucecivica.test", password: "Evento!Sicuro2026" } });
     expect(registration.statusCode).toBe(201);
@@ -118,8 +128,19 @@ describe.sequential("onePixel control plane", () => {
     expect(created.json()).toMatchObject({ participantLimit: 500, layoutId: selfServeLayoutId });
     const repeated = await app.inject({ method: "POST", url: "/v1/events", headers: { authorization: `Bearer ${selfServeToken}` }, payload: { ...payload, title: "Duplicato" } });
     expect(repeated.statusCode).toBe(402);
+    const details = await app.inject({ method: "GET", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    expect(details.statusCode).toBe(200);
+    expect(details.json()).toMatchObject({ id: selfServeEventId, title: "Luci in Piazza", venue_name: "Piazza del Faro" });
+    const edited = await app.inject({ method: "PATCH", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { title: "Luci in Piazza 2026", locationName: "Piazza del Faro nuova" } });
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json()).toMatchObject({ title: "Luci in Piazza 2026", locationName: "Piazza del Faro nuova" });
     const published = await app.inject({ method: "POST", url: `/v1/events/${selfServeEventId}/timeline`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { cues: [{ id: "welcome", atMs: 0, durationMs: 5000, zones: ["*"], color: "#D1E66A" }], assets: [], publish: true } });
     expect(published.statusCode).toBe(201);
+    const cosmetic = await app.inject({ method: "PATCH", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { description: "Descrizione aggiornata dopo la pubblicazione" } });
+    expect(cosmetic.statusCode).toBe(200);
+    const locked = await app.inject({ method: "PATCH", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { locationName: "Posizione vietata" } });
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json()).toMatchObject({ error: "PUBLISHED_EVENT_LOCKED" });
   });
 
   it("salva un percorso corteo con tappe manuali, programmate e automatiche", async () => {

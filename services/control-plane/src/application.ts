@@ -59,6 +59,7 @@ type EventRow = {
   access_policy?: EventAccessPolicy | string;
   participant_limit?: number;
   description?: string;
+  program?: unknown;
   location_name?: string;
   cover_url?: string;
   layout_snapshot?: VenueDocument | string;
@@ -270,6 +271,22 @@ const eventSchema = z.object({
   torchAllowed: z.boolean().default(false),
   accessPolicy: accessPolicySchema,
 });
+const eventUpdateSchema = z.object({
+  title: z.string().min(2).max(160).optional(),
+  description: z.string().max(4000).optional(),
+  program: z.array(z.object({ at: z.string(), title: z.string().min(1).max(160) })).max(100).optional(),
+  locationName: z.string().max(200).optional(),
+  coverUrl: z.string().url().nullable().optional(),
+  kind: z.enum(["sport", "concert", "festival", "demonstration", "gathering", "parade", "fair", "civic", "temporary", "other"]).optional(),
+  startsAt: z.string().datetime().optional(),
+  endsAt: z.string().datetime().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  discoveryRadiusM: z.number().int().min(100).max(50_000).optional(),
+  audioAllowed: z.boolean().optional(),
+  torchAllowed: z.boolean().optional(),
+  accessPolicy: accessPolicySchema.optional(),
+}).refine((value) => Object.keys(value).length > 0, "Indica almeno una modifica");
 const cueSchema = z.object({
   id: z.string().min(1),
   atMs: z.number().int().nonnegative(),
@@ -995,6 +1012,17 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
     return many(database, "SELECT u.id, u.email, u.name, u.role, u.enabled, u.last_login_at, u.created_at, o.name AS organization_name FROM users u LEFT JOIN organizations o ON o.id = u.organization_id ORDER BY u.created_at DESC");
   });
 
+  app.patch("/v1/admin/users/:userId", async (request) => {
+    const claims = requireSuperAdmin(request);
+    const { userId } = z.object({ userId: z.string().min(1) }).parse(request.params);
+    const body = z.object({ enabled: z.boolean() }).parse(request.body);
+    if (userId === claims.sub && !body.enabled) throw new HttpError(409, "CANNOT_DISABLE_SELF", "Non puoi disabilitare il tuo account mentre lo stai usando");
+    const result = await database.query<{ id: string; enabled: boolean }>("UPDATE users SET enabled = $2 WHERE id = $1 RETURNING id, enabled", [userId, body.enabled]);
+    if (result.rows.length === 0) throw new HttpError(404, "USER_NOT_FOUND", "Utente non trovato");
+    await audit(claims, body.enabled ? "user.enabled" : "user.disabled", "user", userId);
+    return result.rows[0];
+  });
+
   app.get("/v1/admin/payments", async (request) => {
     requireSuperAdmin(request);
     return many(database, "SELECT p.*, o.name AS organization_name, e.title AS event_title FROM event_payments p JOIN organizations o ON o.id = p.organization_id LEFT JOIN events e ON e.id = p.consumed_event_id ORDER BY p.created_at DESC");
@@ -1127,6 +1155,46 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
     const claims = access(request);
     if (claims.role === "super_admin") return many(database, "SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity, p.tier AS payment_tier, p.status AS payment_status FROM events e JOIN venues v ON v.id = e.venue_id LEFT JOIN event_payments p ON p.id = e.payment_id ORDER BY e.starts_at DESC");
     return many(database, "SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity, p.tier AS payment_tier, p.status AS payment_status FROM events e JOIN venues v ON v.id = e.venue_id LEFT JOIN event_payments p ON p.id = e.payment_id WHERE e.organization_id = $1 ORDER BY e.starts_at DESC", [claims.organizationId]);
+  });
+
+  app.get("/v1/events/:eventId", async (request) => {
+    const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    const { event } = await ownedEvent(request, eventId);
+    const venue = await one<{ venue_name: string }>(database, "SELECT name AS venue_name FROM venues WHERE id = $1", [event.venue_id]);
+    return { ...event, venue_name: venue?.venue_name ?? "" };
+  });
+
+  app.patch("/v1/events/:eventId", async (request) => {
+    const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    const { claims, event } = await ownedEvent(request, eventId);
+    const body = eventUpdateSchema.parse(request.body);
+    if (["live", "stopped", "completed"].includes(event.status)) throw new HttpError(409, "EVENT_NOT_EDITABLE", "Un evento live o concluso non può essere modificato");
+    if (event.status === "published") {
+      const disallowed = Object.keys(body).filter((key) => !["title", "description", "program", "coverUrl"].includes(key));
+      if (disallowed.length > 0) throw new HttpError(409, "PUBLISHED_EVENT_LOCKED", "Dopo la pubblicazione puoi modificare soltanto titolo, descrizione, programma e copertina");
+    }
+    const startsAt = body.startsAt ?? iso(event.starts_at);
+    const endsAt = body.endsAt ?? iso(event.ends_at);
+    if (new Date(endsAt) <= new Date(startsAt)) throw new HttpError(400, "INVALID_INTERVAL", "La fine deve essere successiva all'inizio");
+    const next = {
+      title: body.title ?? event.title,
+      description: body.description ?? event.description,
+      program: body.program ?? jsonValue(event.program ?? []),
+      locationName: body.locationName ?? event.location_name,
+      coverUrl: body.coverUrl === undefined ? event.cover_url : body.coverUrl,
+      kind: body.kind ?? event.kind,
+      startsAt,
+      endsAt,
+      latitude: body.latitude ?? Number(event.latitude),
+      longitude: body.longitude ?? Number(event.longitude),
+      discoveryRadiusM: body.discoveryRadiusM ?? event.discovery_radius_m,
+      audioAllowed: body.audioAllowed ?? event.audio_allowed,
+      torchAllowed: body.torchAllowed ?? event.torch_allowed,
+      accessPolicy: body.accessPolicy ?? jsonValue(event.access_policy),
+    };
+    await database.query("UPDATE events SET title = $2, description = $3, program = $4, location_name = $5, cover_url = $6, kind = $7, starts_at = $8, ends_at = $9, latitude = $10, longitude = $11, discovery_radius_m = $12, audio_allowed = $13, torch_allowed = $14, access_policy = $15, updated_at = now() WHERE id = $1", [eventId, next.title, next.description, JSON.stringify(next.program), next.locationName, next.coverUrl, next.kind, next.startsAt, next.endsAt, next.latitude, next.longitude, next.discoveryRadiusM, next.audioAllowed, next.torchAllowed, JSON.stringify(next.accessPolicy)]);
+    await audit(claims, "event.updated", "event", eventId, { fields: Object.keys(body) });
+    return { id: eventId, status: event.status, ...next };
   });
 
   app.post("/v1/events", async (request, reply) => {
