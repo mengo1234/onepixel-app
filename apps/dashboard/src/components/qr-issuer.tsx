@@ -4,6 +4,7 @@ import { DownloadSimpleIcon, FileCsvIcon, FilePdfIcon, QrCodeIcon, SpinnerGapIco
 import Image from "next/image";
 import QRCode from "qrcode";
 import { useState, type FormEvent } from "react";
+import { Localized } from "./dashboard-language";
 
 type Zone = { id: string; label: string; seats: number };
 type IssuedCode = { zoneId: string; seatId: string | null; deepLink: string; expiresAt: string };
@@ -78,7 +79,7 @@ export function QrIssuer({ eventId, zones }: { eventId: string; zones: Zone[] })
   }
 
   return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[#111516]">
+    <Localized><section className="overflow-hidden rounded-[30px] border border-white/10 bg-[#111516]">
       <div className="grid gap-5 p-5 lg:grid-cols-[1fr_300px] lg:p-7">
         <form onSubmit={issue}>
           <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#d1e66a]">Assegnazione accesso</p>
@@ -92,6 +93,6 @@ export function QrIssuer({ eventId, zones }: { eventId: string; zones: Zone[] })
         <div className="grid min-h-[260px] place-items-center rounded-[24px] border border-dashed border-white/12 bg-[#0b0d0e] p-4">{qrImage ? <div className="text-center"><Image src={qrImage} alt="QR onePixel firmato" width={220} height={220} unoptimized className="mx-auto rounded-xl" /><a href={qrImage} download={`onepixel-${eventId}.png`} className="mt-3 inline-flex items-center gap-2 text-xs text-[#d1e66a]"><DownloadSimpleIcon size={15} />Scarica PNG</a><p className="sr-only">{deepLink}</p></div> : <div className="text-center text-[#626a68]"><QrCodeIcon size={48} className="mx-auto" /><p className="mt-3 text-xs">Il codice comparirà qui</p></div>}</div>
       </div>
       <div className="border-t border-white/8 bg-[#0d1112] p-5 lg:px-7"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm font-semibold">Esportazione massiva</p><p className="mt-1 text-[11px] text-[#737b79]">Tutte le zone oppure ogni posto della configurazione congelata nell&apos;evento.</p></div><div className="flex flex-wrap gap-2"><button type="button" disabled={bulkPending} onClick={() => void issueBulk(false)} className="rounded-full border border-white/12 px-4 py-2 text-[11px] text-[#b2b9b7]">Genera per zone</button><button type="button" disabled={bulkPending} onClick={() => void issueBulk(true)} className="rounded-full border border-white/12 px-4 py-2 text-[11px] text-[#b2b9b7]">Genera per posti</button></div></div>{bulkPending && <p className="mt-4 flex items-center gap-2 text-xs text-[#d1e66a]"><SpinnerGapIcon className="animate-spin" />Preparazione lotto…</p>}{bulkCodes.length > 0 && <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-[#d1e66a]/20 bg-[#d1e66a]/6 p-3"><span className="mr-auto text-xs text-[#d1e66a]">{bulkCodes.length.toLocaleString("it-IT")} codici pronti</span><button type="button" onClick={exportCsv} className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[11px] font-semibold text-[#101314]"><FileCsvIcon size={15} />CSV</button><button type="button" onClick={() => void exportPdf()} className="flex items-center gap-2 rounded-full bg-[#d1e66a] px-4 py-2 text-[11px] font-semibold text-[#101314]"><FilePdfIcon size={15} />PDF</button></div>}</div>
-    </section>
+    </section></Localized>
   );
 }

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { LoginForm } from "@/components/login-form";
+import { Localized } from "@/components/dashboard-language";
 
 const loginErrors: Record<string, string> = {
   invalid_request: "Richiesta di accesso non valida. Riprova.",
@@ -12,7 +13,7 @@ const loginErrors: Record<string, string> = {
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const errorCode = (await searchParams).error;
   return (
-    <main className="grid min-h-[100dvh] bg-[#0b0d0e] lg:grid-cols-[0.9fr_1.1fr]">
+    <Localized><main className="grid min-h-[100dvh] bg-[#0b0d0e] lg:grid-cols-[0.9fr_1.1fr]">
       <section className="flex flex-col justify-between px-5 py-6 sm:px-10 lg:px-[8vw] lg:py-10">
         <BrandMark />
         <div className="my-16 max-w-md lg:my-8">
@@ -31,6 +32,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="font-mono text-[10px] text-[#d1e66a]">31.842 DISPOSITIVI</p><p className="mt-3 text-xl font-semibold tracking-[-0.04em]">Una folla, un solo istante.</p>
         </div>
       </section>
-    </main>
+    </main></Localized>
   );
 }

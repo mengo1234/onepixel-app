@@ -4,6 +4,7 @@ import { CheckCircleIcon, SpinnerGapIcon, WarningCircleIcon } from "@phosphor-ic
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Localized } from "./dashboard-language";
 
 export function UpgradeFinalize({ eventId, paymentId }: { eventId: string; paymentId: string }) {
   const router = useRouter();
@@ -23,5 +24,5 @@ export function UpgradeFinalize({ eventId, paymentId }: { eventId: string; payme
     void apply();
     return () => { cancelled = true; };
   }, [eventId, paymentId, router]);
-  return <div className="mx-auto max-w-xl rounded-[30px] border border-white/10 bg-[#111516] p-8 text-center">{state === "loading" ? <SpinnerGapIcon size={34} className="mx-auto animate-spin text-[#d1e66a]" /> : state === "done" ? <CheckCircleIcon size={34} weight="fill" className="mx-auto text-[#d1e66a]" /> : <WarningCircleIcon size={34} className="mx-auto text-[#e58a7c]" />}<h2 className="mt-5 text-xl font-semibold">{state === "error" ? "Serve un controllo" : "Upgrade evento"}</h2><p className="mt-2 text-xs leading-5 text-[#8f9795]">{message}</p>{state === "error" && <Link href={`/events/${eventId}/upgrade`} className="mt-5 inline-flex rounded-full bg-[#d1e66a] px-5 py-2.5 text-xs font-semibold text-[#101314]">Riprova</Link>}</div>;
+  return <Localized><div className="mx-auto max-w-xl rounded-[30px] border border-white/10 bg-[#111516] p-8 text-center">{state === "loading" ? <SpinnerGapIcon size={34} className="mx-auto animate-spin text-[#d1e66a]" /> : state === "done" ? <CheckCircleIcon size={34} weight="fill" className="mx-auto text-[#d1e66a]" /> : <WarningCircleIcon size={34} className="mx-auto text-[#e58a7c]" />}<h2 className="mt-5 text-xl font-semibold">{state === "error" ? "Serve un controllo" : "Upgrade evento"}</h2><p className="mt-2 text-xs leading-5 text-[#8f9795]">{message}</p>{state === "error" && <Link href={`/events/${eventId}/upgrade`} className="mt-5 inline-flex rounded-full bg-[#d1e66a] px-5 py-2.5 text-xs font-semibold text-[#101314]">Riprova</Link>}</div></Localized>;
 }

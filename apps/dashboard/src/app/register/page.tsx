@@ -1,5 +1,6 @@
 import { BrandMark } from "@/components/brand-mark";
 import { RegisterForm } from "@/components/register-form";
+import { Localized } from "@/components/dashboard-language";
 
 const registerErrors: Record<string, string> = {
   invalid_request: "Richiesta di registrazione non valida. Riprova.",
@@ -10,7 +11,7 @@ const registerErrors: Record<string, string> = {
 export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const errorCode = (await searchParams).error;
   return (
-    <main className="min-h-[100dvh] bg-[#0b0d0e] px-4 py-5 sm:px-8 lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(540px,1.1fr)] lg:gap-10 lg:p-8">
+    <Localized><main className="min-h-[100dvh] bg-[#0b0d0e] px-4 py-5 sm:px-8 lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(540px,1.1fr)] lg:gap-10 lg:p-8">
       <section className="relative hidden overflow-hidden rounded-[36px] border border-white/10 bg-[#131819] p-10 surface-grid lg:flex lg:flex-col lg:justify-between">
         <BrandMark />
         <div className="relative z-[1] max-w-lg pb-8">
@@ -29,6 +30,6 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         <p className="mt-4 max-w-[52ch] text-sm leading-6 text-[#8e9694]">Registrati, scegli la capienza e sblocca un evento mock senza addebiti. La procedura guidata parte immediatamente.</p>
         <RegisterForm initialError={errorCode ? registerErrors[errorCode] ?? "Registrazione non riuscita. Riprova." : ""} />
       </section>
-    </main>
+    </main></Localized>
   );
 }

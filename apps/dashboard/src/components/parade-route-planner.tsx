@@ -4,6 +4,7 @@ import { ArrowDownIcon, ArrowUpIcon, CheckCircleIcon, FlagCheckeredIcon, PathIco
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { RoutePoint } from "./parade-route-map";
+import { Localized } from "./dashboard-language";
 
 const ParadeRouteMap = dynamic(() => import("./parade-route-map"), { ssr: false, loading: () => <div className="size-full animate-pulse bg-white/[.035]" /> });
 
@@ -140,7 +141,7 @@ export function ParadeRoutePlanner({ eventId, initialPolicy, fallbackCenter }: {
   }
 
   return (
-    <section className="overflow-hidden rounded-[30px] border border-[#d1e66a]/20 bg-[#111516]">
+    <Localized><section className="overflow-hidden rounded-[30px] border border-[#d1e66a]/20 bg-[#111516]">
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1.25fr)_410px]">
         <div className="min-w-0 border-b border-white/8 xl:border-b-0 xl:border-r">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
@@ -176,6 +177,6 @@ export function ParadeRoutePlanner({ eventId, initialPolicy, fallbackCenter }: {
           <button type="button" onClick={() => void save()} disabled={saveState === "saving" || points.length < 2} className="image-skin mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full text-xs font-semibold text-[#0b0d0e] disabled:opacity-40" style={{ borderImageSource: "url('/buttons/primary-signal-v1.png')" }}>{saveState === "saving" ? "Salvataggio…" : saveState === "saved" ? <><CheckCircleIcon size={17} weight="fill" /> Percorso e automazioni salvati</> : <><FlagCheckeredIcon size={17} weight="fill" /> Salva percorso e automazioni</>}</button>
         </aside>
       </div>
-    </section>
+    </section></Localized>
   );
 }

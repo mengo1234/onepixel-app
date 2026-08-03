@@ -16,6 +16,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { LocationPicker, type CadastralSelection } from "./location-picker";
+import { Localized } from "./dashboard-language";
 
 const ParadeRouteMap = dynamic(() => import("./parade-route-map"), { ssr: false, loading: () => <div className="size-full animate-pulse bg-white/[.035]" /> });
 
@@ -172,7 +173,7 @@ export function NewEventForm({ venues, paymentId, participantLimit }: { venues: 
   ];
 
   return (
-    <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[#101415] shadow-[0_30px_90px_-45px_rgba(0,0,0,.9)]">
+    <Localized><div className="overflow-hidden rounded-[34px] border border-white/10 bg-[#101415] shadow-[0_30px_90px_-45px_rgba(0,0,0,.9)]">
       <div className="grid border-b border-white/10 sm:grid-cols-4">
         {steps.map(({ label, icon: Icon }, index) => <button key={label} type="button" disabled={index > step} onClick={() => index < step && setStep(index)} aria-current={index === step ? "step" : undefined} className={`flex items-center gap-3 border-white/8 px-4 py-3.5 text-left transition sm:border-r ${index === step ? "bg-[#d1e66a]/8 text-[#d1e66a]" : index < step ? "text-white" : "text-[#626a68]"}`}><span className={`grid size-8 place-items-center rounded-xl border ${index <= step ? "border-[#d1e66a]/30" : "border-white/8"}`}><Icon size={16} weight={index === step ? "fill" : "regular"} /></span><span><span className="block font-mono text-[8px] uppercase tracking-[.15em]">0{index + 1}</span><span className="mt-0.5 block text-xs font-medium">{label}</span></span></button>)}
       </div>
@@ -199,18 +200,18 @@ export function NewEventForm({ venues, paymentId, participantLimit }: { venues: 
 
       {error && <p role="alert" className="mx-5 mb-3 rounded-2xl border border-[#e26d5a]/25 bg-[#e26d5a]/10 p-3 text-xs text-[#f1a193] sm:mx-8">{error}</p>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4 sm:px-8"><button type="button" onClick={() => setStep((value) => Math.max(0, value - 1))} disabled={step === 0 || pending} className="flex h-10 items-center gap-2 rounded-full border border-white/10 px-4 text-xs text-[#a4acaa] transition hover:bg-white/5 disabled:opacity-25"><ArrowLeftIcon size={15} />Indietro</button>{step < 3 && continueHint() && <p className="order-3 w-full text-center text-[10px] text-[#e2a65a] sm:order-none sm:w-auto" aria-live="polite">{continueHint()}</p>}{step < 3 ? <button type="button" onClick={() => canContinue() && setStep((value) => value + 1)} disabled={!canContinue() || (kind === "parade" && step === 1 && routePoints.length === 1)} className="flex h-10 items-center gap-2 rounded-full bg-[#d1e66a] px-5 text-xs font-semibold text-[#101314] disabled:opacity-30">Continua<ArrowRightIcon size={15} weight="bold" /></button> : <button type="button" onClick={() => void submit()} disabled={pending} className="flex h-10 items-center gap-2 rounded-full bg-[#d1e66a] px-5 text-xs font-semibold text-[#101314] disabled:opacity-50">{pending ? "Creazione…" : "Crea e apri lo studio"}<ArrowRightIcon size={15} weight="bold" /></button>}</div>
-    </div>
+    </div></Localized>
   );
 }
 
 function AccessChoice({ active, onClick, icon: Icon, title, note }: { active: boolean; onClick: () => void; icon: typeof QrCodeIcon; title: string; note: string }) {
-  return <button type="button" onClick={onClick} aria-pressed={active} className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${active ? "border-[#d1e66a]/35 bg-[#d1e66a]/8" : "border-white/8 bg-white/[.015]"}`}><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${active ? "bg-[#d1e66a] text-[#101314]" : "bg-white/5 text-[#777f7d]"}`}><Icon size={17} weight={active ? "bold" : "regular"} /></span><span className="min-w-0"><span className={`block text-xs font-medium ${active ? "text-white" : "text-[#858d8b]"}`}>{title}</span><span className="mt-0.5 block text-[9px] leading-4 text-[#68706f]">{note}</span></span>{active && <CheckCircleIcon size={17} weight="fill" className="ml-auto shrink-0 text-[#d1e66a]" />}</button>;
+  return <Localized><button type="button" onClick={onClick} aria-pressed={active} className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${active ? "border-[#d1e66a]/35 bg-[#d1e66a]/8" : "border-white/8 bg-white/[.015]"}`}><span className={`grid size-9 shrink-0 place-items-center rounded-xl ${active ? "bg-[#d1e66a] text-[#101314]" : "bg-white/5 text-[#777f7d]"}`}><Icon size={17} weight={active ? "bold" : "regular"} /></span><span className="min-w-0"><span className={`block text-xs font-medium ${active ? "text-white" : "text-[#858d8b]"}`}>{title}</span><span className="mt-0.5 block text-[9px] leading-4 text-[#68706f]">{note}</span></span>{active && <CheckCircleIcon size={17} weight="fill" className="ml-auto shrink-0 text-[#d1e66a]" />}</button></Localized>;
 }
 
 function ToggleCard({ active, onClick, icon: Icon, title, note }: { active: boolean; onClick: () => void; icon: typeof SpeakerHighIcon; title: string; note: string }) {
-  return <button type="button" onClick={onClick} aria-pressed={active} className={`min-h-40 rounded-[26px] border p-5 text-left transition ${active ? "border-[#d1e66a]/35 bg-[#d1e66a]/8" : "border-white/10 bg-[#0b0e0f]"}`}><div className="flex items-start justify-between"><span className={`grid size-11 place-items-center rounded-2xl ${active ? "bg-[#d1e66a] text-[#101314]" : "bg-white/5 text-[#707876]"}`}><Icon size={21} weight="fill" /></span><span className={`rounded-full border px-2.5 py-1 font-mono text-[8px] ${active ? "border-[#d1e66a]/30 text-[#d1e66a]" : "border-white/8 text-[#68706f]"}`}>{active ? "CONSENTITO" : "DISATTIVO"}</span></div><p className="mt-5 text-sm font-semibold text-white">{title}</p><p className="mt-1.5 text-[11px] leading-5 text-[#747c7a]">{note}</p></button>;
+  return <Localized><button type="button" onClick={onClick} aria-pressed={active} className={`min-h-40 rounded-[26px] border p-5 text-left transition ${active ? "border-[#d1e66a]/35 bg-[#d1e66a]/8" : "border-white/10 bg-[#0b0e0f]"}`}><div className="flex items-start justify-between"><span className={`grid size-11 place-items-center rounded-2xl ${active ? "bg-[#d1e66a] text-[#101314]" : "bg-white/5 text-[#707876]"}`}><Icon size={21} weight="fill" /></span><span className={`rounded-full border px-2.5 py-1 font-mono text-[8px] ${active ? "border-[#d1e66a]/30 text-[#d1e66a]" : "border-white/8 text-[#68706f]"}`}>{active ? "CONSENTITO" : "DISATTIVO"}</span></div><p className="mt-5 text-sm font-semibold text-white">{title}</p><p className="mt-1.5 text-[11px] leading-5 text-[#747c7a]">{note}</p></button></Localized>;
 }
 
 function Summary({ label, value }: { label: string; value: string }) {
-  return <div className="grid gap-1 py-4 sm:grid-cols-[150px_1fr]"><span className="font-mono text-[9px] uppercase tracking-[.15em] text-[#66706d]">{label}</span><span className="text-xs text-[#dce1df]">{value}</span></div>;
+  return <Localized><div className="grid gap-1 py-4 sm:grid-cols-[150px_1fr]"><span className="font-mono text-[9px] uppercase tracking-[.15em] text-[#66706d]">{label}</span><span className="text-xs text-[#dce1df]">{value}</span></div></Localized>;
 }

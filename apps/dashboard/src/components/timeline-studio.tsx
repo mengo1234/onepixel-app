@@ -3,6 +3,7 @@
 import { ImageIcon, MicrophoneIcon, PauseIcon, PlayIcon, SpeakerHighIcon, TrashIcon, VideoIcon, VibrateIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StadiumMap } from "./stadium-map";
+import { Localized } from "./dashboard-language";
 
 type Cue = {
   id: string;
@@ -163,7 +164,7 @@ export function TimelineStudio({ eventId, eventTitle, venueName, zones }: { even
   }
 
   return (
-    <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
+    <Localized><div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
       <div className="min-w-0 space-y-5">
         <div className="relative">
           <StadiumMap compact active={playing} venueName={venueName} zoneCount={zones.length} />
@@ -226,6 +227,6 @@ export function TimelineStudio({ eventId, eventTitle, venueName, zones }: { even
           <button type="button" onClick={addManualCue} className="image-skin mt-4 h-11 w-full rounded-full text-xs font-semibold text-[#0b0d0e]" style={{ borderImageSource: "url('/buttons/primary-signal-v1.png')" }}>Aggiungi effetto alla timeline</button>
         </> : <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.025] p-5 text-center"><VideoIcon size={25} className="mx-auto text-[#d1e66a]" /><p className="mt-3 text-xs text-[#b8bfbd]">{importedCues.length ? `${importedCues.length} effetti pronti` : "Scegli un'immagine, una GIF o un video: verrà trasformato automaticamente in effetti sincronizzati."}</p><button type="button" onClick={() => mediaInput.current?.click()} className="mt-4 rounded-full bg-[#d1e66a] px-4 py-2 text-[11px] font-semibold text-[#101314]">Scegli immagine o video</button></div>}
       </aside>
-    </div>
+    </div></Localized>
   );
 }

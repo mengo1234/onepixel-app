@@ -3,6 +3,7 @@ import { EventCheckout } from "@/components/event-checkout";
 import { PageHeader } from "@/components/page-header";
 import { UpgradeFinalize } from "@/components/upgrade-finalize";
 import { controlPlaneGet } from "@/lib/control-plane";
+import { Localized } from "@/components/dashboard-language";
 
 type Event = { id: string; title: string; participant_limit: number };
 type Tier = { id: "small" | "medium" | "large"; participantLimit: number; amountCents: number; label: { it: string; en: string } };
@@ -17,5 +18,5 @@ export default async function UpgradeEventPage({ params, searchParams }: { param
     if (payment?.status === "paid") return <div className="space-y-8"><PageHeader eyebrow={event.title} title="Applico la nuova fascia." description="Lo sblocco demo è confermato; aggiorniamo il limite senza interrompere chi è già collegato." /><UpgradeFinalize eventId={eventId} paymentId={paymentId} /></div>;
   }
   const tiers = (await controlPlaneGet<Tier[]>("/v1/billing/tiers")).filter((tier) => tier.participantLimit > event.participant_limit);
-  return <div className="space-y-8"><PageHeader eyebrow={`${event.title} · Upgrade`} title="Aumenta la capienza dell’evento." description={`Limite attuale: ${event.participant_limit.toLocaleString("it-IT")} partecipanti. Lo sblocco mock viene collegato soltanto a questo evento.`} /><EventCheckout tiers={tiers} successPath={`/events/${eventId}/upgrade`} cancelPath={`/events/${eventId}/studio`} /></div>;
+  return <Localized><div className="space-y-8"><PageHeader eyebrow={`${event.title} · Upgrade`} title="Aumenta la capienza dell’evento." description={`Limite attuale: ${event.participant_limit.toLocaleString("it-IT")} partecipanti. Lo sblocco mock viene collegato soltanto a questo evento.`} /><EventCheckout tiers={tiers} successPath={`/events/${eventId}/upgrade`} cancelPath={`/events/${eventId}/studio`} /></div></Localized>;
 }

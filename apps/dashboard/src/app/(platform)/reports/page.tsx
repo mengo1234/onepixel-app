@@ -2,6 +2,7 @@ import { ChartBarIcon, PulseIcon } from "@phosphor-icons/react/dist/ssr";
 import { PageHeader } from "@/components/page-header";
 import { ReportExport } from "@/components/report-export";
 import { controlPlaneGet } from "@/lib/control-plane";
+import { Localized } from "@/components/dashboard-language";
 
 type Event = { id: string; title: string; venue_name: string; venue_capacity: number };
 type Report = { eventId: string; generatedAt: string; devices: { unique_devices: number; ready_devices: number; avg_offset_ms: number }; commands: { total_commands: number; stop_commands: number }; zones: Array<{ zone_id: string; unique_devices: number; ready_devices: number; avg_offset_ms: number }> };
@@ -12,7 +13,7 @@ export default async function ReportsPage() {
   const report = event ? await controlPlaneGet<Report>(`/v1/events/${event.id}/report`) : null;
   const coverage = event && report ? Math.round((report.devices.ready_devices / Math.max(1, event.venue_capacity)) * 1000) / 10 : 0;
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader eyebrow="Report" title="Misura ciò che è successo davvero." description="Copertura, precisione temporale, pacchetti scaricati e problemi di rete restano disponibili dopo ogni evento." />
       <section className="grid gap-px overflow-hidden rounded-[28px] border border-white/10 bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -52,6 +53,6 @@ export default async function ReportsPage() {
           {report && event && <ReportExport report={{ eventId: report.eventId, eventTitle: event.title, generatedAt: report.generatedAt, zones: report.zones }} />}
         </div>
       </section>
-    </div>
+    </div></Localized>
   );
 }

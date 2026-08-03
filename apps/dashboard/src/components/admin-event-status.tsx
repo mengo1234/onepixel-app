@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Localized } from "./dashboard-language";
 
 export function AdminEventStatus({ id, status }: { id: string; status: string }) {
   const router = useRouter();
@@ -12,5 +13,5 @@ export function AdminEventStatus({ id, status }: { id: string; status: string })
     setPending(false);
     router.refresh();
   }
-  return <select disabled={pending} value={status} onChange={(event) => void change(event.target.value)} className="h-9 rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-[11px] text-white"><option value="draft">Bozza</option><option value="published">Pubblicato</option><option value="live">Live</option><option value="stopped">Fermato</option></select>;
+  return <Localized><select disabled={pending} value={status} onChange={(event) => void change(event.target.value)} className="h-9 rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-[11px] text-white"><option value="draft">Bozza</option><option value="published">Pubblicato</option><option value="live">Live</option><option value="stopped">Fermato</option></select></Localized>;
 }

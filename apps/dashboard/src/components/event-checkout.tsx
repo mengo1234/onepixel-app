@@ -2,6 +2,7 @@
 
 import { ArrowRightIcon, CheckIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import { Localized } from "./dashboard-language";
 
 type Tier = { id: "small" | "medium" | "large"; participantLimit: number; amountCents: number; label: { it: string; en: string } };
 
@@ -29,7 +30,7 @@ export function EventCheckout({ tiers, successPath = "/dashboard", cancelPath = 
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <Localized><div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="divide-y divide-white/8 border-y border-white/10">
         {tiers.map((tier, index) => {
           const active = selected === tier.id;
@@ -54,6 +55,6 @@ export function EventCheckout({ tiers, successPath = "/dashboard", cancelPath = 
         <button type="button" onClick={checkout} disabled={pending || tiers.length === 0} className="mt-7 flex h-13 w-full items-center justify-between rounded-full bg-[#d1e66a] px-5 text-sm font-semibold text-[#101314] transition hover:-translate-y-0.5 active:translate-y-px disabled:opacity-50"><span>{pending ? "Attivazione demo…" : "Sblocca evento demo"}</span><ArrowRightIcon size={17} weight="bold" /></button>
         <p className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.14em] text-[#5f6765]">MODALITÀ MOCK · NESSUN ADDEBITO</p>
       </aside>
-    </div>
+    </div></Localized>
   );
 }

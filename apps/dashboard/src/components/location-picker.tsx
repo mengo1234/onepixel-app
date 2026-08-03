@@ -4,6 +4,7 @@ import { CrosshairIcon, MapPinIcon, SpinnerGapIcon } from "@phosphor-icons/react
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { CadastralSource, GeoMultiPolygon, GeoPolygon } from "@onepixel/protocol";
+import { Localized } from "./dashboard-language";
 
 const LocationMap = dynamic(() => import("./location-map"), { ssr: false, loading: () => <div className="size-full animate-pulse bg-white/[0.035]" /> });
 
@@ -40,12 +41,12 @@ export function LocationPicker({ latitude, longitude, onChange, onCadastre }: { 
   }
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1112]">
+    <Localized><div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0d1112]">
       <div className="relative h-[330px] sm:h-[390px]">
         <LocationMap center={[latitude, longitude]} boundary={cadastre?.selected?.geometry} neighbors={cadastre?.neighbors.map((item) => item.geometry)} onPick={(lat, lng) => void pick(lat, lng)} />
         <button type="button" onClick={locate} className="absolute bottom-4 right-4 z-[500] grid size-11 place-items-center rounded-full border border-white/10 bg-[#101415]/90 text-[#d1e66a] shadow-xl backdrop-blur-xl transition active:scale-[0.97]" aria-label="Usa la posizione attuale"><CrosshairIcon size={20} weight="bold" /></button>
       </div>
       <div className="flex min-h-14 items-center gap-3 border-t border-white/10 px-4 py-3 text-xs text-[#9ba3a1]">{loading ? <SpinnerGapIcon size={17} className="shrink-0 animate-spin text-[#d1e66a]" /> : <MapPinIcon size={17} className="shrink-0 text-[#d1e66a]" />}<span>{message}</span></div>
-    </div>
+    </div></Localized>
   );
 }

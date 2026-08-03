@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BrandMark } from "./brand-mark";
+import { Localized } from "./dashboard-language";
 
 const organizationLinks = [
   { href: "/dashboard", label: "Panoramica", mobileLabel: "Home", icon: GaugeIcon },
@@ -44,7 +45,7 @@ export function PlatformNav({ role, email }: { role: "super_admin" | "organizati
   }
 
   return (
-    <aside className="flex flex-col border-b border-white/8 bg-[#0d1011] lg:fixed lg:inset-y-0 lg:w-[248px] lg:border-b-0 lg:border-r">
+    <Localized><aside className="flex flex-col border-b border-white/8 bg-[#0d1011] lg:fixed lg:inset-y-0 lg:w-[248px] lg:border-b-0 lg:border-r">
       <div className="flex w-full items-center justify-between gap-3 px-4 py-4 lg:block lg:px-6 lg:py-7">
         <BrandMark />
         <div className="flex items-center gap-2 lg:block">
@@ -132,6 +133,6 @@ export function PlatformNav({ role, email }: { role: "super_admin" | "organizati
           Sessione autenticata
         </div>
       </div>
-    </aside>
+    </aside></Localized>
   );
 }

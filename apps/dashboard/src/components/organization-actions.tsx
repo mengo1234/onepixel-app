@@ -3,6 +3,7 @@
 import { KeyIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { Localized } from "./dashboard-language";
 
 export function NewOrganizationButton() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export function NewOrganizationButton() {
   }
 
   const input = "h-11 w-full rounded-xl border border-white/10 bg-[#0b0d0e] px-3 text-sm text-white";
-  return <>
+  return <Localized><>
     <button type="button" onClick={() => setOpen(true)} className="image-skin flex h-12 items-center gap-2 rounded-full px-6 text-sm font-semibold text-[#0b0d0e] transition hover:-translate-y-0.5" style={{ borderImageSource: "url('/buttons/primary-signal-v1.png')" }}><PlusIcon size={17} weight="bold" /> Nuova organizzazione</button>
     {open && <div className="fixed inset-0 z-50 grid place-items-center bg-[#050607]/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Nuova organizzazione">
       <form onSubmit={submit} autoComplete="off" className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-[30px] border border-white/12 bg-[#111516] p-6 shadow-2xl">
@@ -52,7 +53,7 @@ export function NewOrganizationButton() {
         <button disabled={pending} type="submit" className="image-skin mt-6 h-12 w-full rounded-full text-sm font-semibold text-[#0b0d0e] disabled:opacity-50" style={{ borderImageSource: "url('/buttons/primary-signal-v1.png')" }}>{pending ? "Creazione…" : "Crea organizzazione e credenziali"}</button>
       </form>
     </div>}
-  </>;
+  </></Localized>;
 }
 
 export function OrganizationStatusButton({ id, status, name }: { id: string; status: "active" | "suspended"; name: string }) {
@@ -64,5 +65,5 @@ export function OrganizationStatusButton({ id, status, name }: { id: string; sta
     setPending(false);
     router.refresh();
   }
-  return <button disabled={pending} onClick={() => void toggle()} type="button" className="grid size-9 place-items-center rounded-full border border-white/10 text-[#87908d] transition hover:text-white disabled:opacity-40" aria-label={`${status === "active" ? "Sospendi" : "Riattiva"} ${name}`}><KeyIcon size={16} /></button>;
+  return <Localized><button disabled={pending} onClick={() => void toggle()} type="button" className="grid size-9 place-items-center rounded-full border border-white/10 text-[#87908d] transition hover:text-white disabled:opacity-40" aria-label={`${status === "active" ? "Sospendi" : "Riattiva"} ${name}`}><KeyIcon size={16} /></button></Localized>;
 }

@@ -5,6 +5,7 @@ import { NewOrganizationButton, OrganizationStatusButton } from "@/components/or
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { roleCookie } from "@/lib/control-plane";
+import { Localized } from "@/components/dashboard-language";
 
 type Organization = { id: string; name: string; status: "active" | "suspended"; expires_at: string; max_events: number; max_devices: number; max_capacity: number };
 
@@ -12,7 +13,7 @@ export default async function OrganizationsPage() {
   if ((await cookies()).get(roleCookie)?.value !== "super_admin") notFound();
   const organizations = await controlPlaneGet<Organization[]>("/v1/admin/organizations");
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader eyebrow="Super amministratore" title="Decidi chi può accendere la piattaforma." description="Crea le organizzazioni dopo la vendita, assegna credenziali e limiti e conserva il controllo operativo generale." />
       <div className="flex justify-end"><NewOrganizationButton /></div>
       <div className="overflow-x-auto rounded-[28px] border border-white/10 bg-[#111516]">
@@ -36,6 +37,6 @@ export default async function OrganizationsPage() {
       <div className="flex items-center gap-3 rounded-2xl border border-[#d1e66a]/15 bg-[#d1e66a]/[0.035] p-4 text-xs text-[#adb4b2]">
         <ShieldCheckIcon size={19} className="shrink-0 text-[#d1e66a]" /> Solo il super amministratore può creare credenziali, modificare licenze o sospendere un cliente.
       </div>
-    </div>
+    </div></Localized>
   );
 }

@@ -1,3 +1,5 @@
+import { Localized } from "./dashboard-language";
+
 type StadiumMapProps = {
   compact?: boolean;
   active?: boolean;
@@ -17,7 +19,7 @@ const sectors = [
 export function StadiumMap({ compact = false, active = false, live = false, venueName = "Struttura", zoneCount = sectors.length, deviceCount = 0 }: StadiumMapProps) {
   const highlighted = active || live;
   return (
-    <div
+    <Localized><div
       className={`surface-grid relative overflow-hidden rounded-[30px] border border-white/10 bg-[#101415] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${
         compact ? "min-h-[280px]" : "min-h-[470px]"
       }`}
@@ -63,6 +65,6 @@ export function StadiumMap({ compact = false, active = false, live = false, venu
         <span className={`size-1.5 rounded-full bg-[#d1e66a] ${highlighted ? "breathe" : ""}`} />
         {live ? `Live · ${deviceCount.toLocaleString("it-IT")} dispositivi` : `${venueName} · ${zoneCount} settori`}
       </div>
-    </div>
+    </div></Localized>
   );
 }

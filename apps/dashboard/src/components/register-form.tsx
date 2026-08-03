@@ -4,6 +4,7 @@ import { ArrowRightIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from "@phospho
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { Localized } from "./dashboard-language";
 
 export function RegisterForm({ initialError = "" }: { initialError?: string }) {
   const router = useRouter();
@@ -34,7 +35,7 @@ export function RegisterForm({ initialError = "" }: { initialError?: string }) {
 
   const field = "h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-sm text-white outline-none transition focus:border-[#d1e66a]/60";
   return (
-    <form method="post" action="/api/register" onSubmit={submit} className="mt-8 space-y-5">
+    <Localized><form method="post" action="/api/register" onSubmit={submit} className="mt-8 space-y-5">
       <div className="grid gap-5 sm:grid-cols-2">
         <label className="grid gap-2"><span className="text-xs font-medium text-[#c6ccca]">Il tuo nome</span><input className={field} name="name" required autoComplete="name" placeholder="Livia Ferri" /></label>
         <label className="grid gap-2"><span className="text-xs font-medium text-[#c6ccca]">Organizzazione</span><input className={field} name="organizationName" required autoComplete="organization" placeholder="Luce Civica" /></label>
@@ -50,6 +51,6 @@ export function RegisterForm({ initialError = "" }: { initialError?: string }) {
         <span className="flex items-center gap-2"><CheckCircleIcon size={18} weight="fill" />{pending ? "Creazione account…" : "Crea account e scegli evento"}</span><ArrowRightIcon size={18} weight="bold" />
       </button>
       <p className="text-center text-xs text-[#7e8684]">Hai già un account? <Link className="font-medium text-[#d1e66a] hover:text-white" href="/login">Accedi</Link></p>
-    </form>
+    </form></Localized>
   );
 }

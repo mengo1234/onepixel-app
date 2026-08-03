@@ -14,6 +14,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { StadiumMap } from "./stadium-map";
+import { Localized } from "./dashboard-language";
 import type { ParadeRoutePolicy, ParadeRouteStop } from "./parade-route-planner";
 
 const ParadeRouteMap = dynamic(() => import("./parade-route-map"), { ssr: false, loading: () => <div className="size-full animate-pulse bg-white/[.035]" /> });
@@ -131,7 +132,7 @@ export function LiveConsole({ eventId, eventTitle, venueName, zoneCount, mobileR
   }
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <Localized><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-5">
         {routePoints.length >= 2 ? <section className="overflow-hidden rounded-[28px] border border-[#d1e66a]/20 bg-[#111516]"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-5 py-4"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#d1e66a]">CORTEO IN TEMPO REALE</p><h2 className="mt-1 text-lg font-semibold">Percorso e posizione del capofila</h2></div><span className="rounded-full bg-white/5 px-3 py-1.5 text-[10px] text-[#aab2af]">{completedStops.size} di {routeStops.filter((stop) => stop.enabled).length} tappe eseguite</span></div><div className="h-[440px]"><ParadeRouteMap center={routePoints[0]} points={routePoints} stops={routeStops.map((stop) => ({ ...stop, active: stop.enabled, completed: completedStops.has(stop.id) }))} leader={leaderPosition} /></div></section> : <StadiumMap active={live} live={live} venueName={venueName} zoneCount={Math.max(zoneCount, presence.zones.length)} deviceCount={presence.connected} />}
         <div className="grid gap-px overflow-hidden rounded-[26px] border border-white/10 bg-white/10 sm:grid-cols-3">
@@ -222,6 +223,6 @@ export function LiveConsole({ eventId, eventTitle, venueName, zoneCount, mobileR
           <StopIcon size={20} weight="fill" /> Arresto generale
         </button>
       </aside>
-    </div>
+    </div></Localized>
   );
 }

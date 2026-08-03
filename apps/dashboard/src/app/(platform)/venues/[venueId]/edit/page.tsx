@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { VenueEditor } from "@/components/venue-editor";
 import { controlPlaneGet } from "@/lib/control-plane";
 import type { StoredLayout, StoredVenue } from "@/lib/venue-types";
+import { Localized } from "@/components/dashboard-language";
 
 export default async function EditVenuePage({ params }: { params: Promise<{ venueId: string }> }) {
   const { venueId } = await params;
@@ -11,9 +12,9 @@ export default async function EditVenuePage({ params }: { params: Promise<{ venu
   if (!venue) notFound();
   const layouts = await controlPlaneGet<StoredLayout[]>(`/v1/venues/${venueId}/layouts?includeArchived=true`);
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader eyebrow="Editor guidato 2D" title={`Modifica ${venue.name}.`} description="Scegli uno strumento, tocca la pianta, personalizza e salva. Livelli, tribune, righe e singoli posti restano sempre modificabili." />
       <VenueEditor initialVenue={venue} initialLayouts={layouts} />
-    </div>
+    </div></Localized>
   );
 }

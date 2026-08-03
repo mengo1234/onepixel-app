@@ -1,6 +1,7 @@
 "use client";
 
 import { DownloadSimpleIcon } from "@phosphor-icons/react";
+import { Localized } from "./dashboard-language";
 
 type ExportReport = {
   eventId: string;
@@ -24,5 +25,5 @@ export function ReportExport({ report }: { report: ExportReport }) {
     URL.revokeObjectURL(url);
   }
 
-  return <button type="button" onClick={download} className="mt-6 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-white/12 text-xs text-[#b2b9b7] transition hover:border-white/30 hover:text-white active:scale-[0.98]"><DownloadSimpleIcon size={16} /> Esporta CSV</button>;
+  return <Localized><button type="button" onClick={download} className="mt-6 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-white/12 text-xs text-[#b2b9b7] transition hover:border-white/30 hover:text-white active:scale-[0.98]"><DownloadSimpleIcon size={16} /> Esporta CSV</button></Localized>;
 }

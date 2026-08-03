@@ -3,6 +3,7 @@
 import { ArrowRightIcon, EyeIcon, EyeSlashIcon, LockKeyIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { Localized } from "./dashboard-language";
 
 export function LoginForm({ initialError = "" }: { initialError?: string }) {
   const router = useRouter();
@@ -32,7 +33,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
   }
 
   return (
-    <form className="mt-9 space-y-5" method="post" action="/api/session" onSubmit={submit}>
+    <Localized><form className="mt-9 space-y-5" method="post" action="/api/session" onSubmit={submit}>
       <label className="block space-y-2">
         <span className="block text-xs font-medium text-[#c0c6c4]">Email organizzazione</span>
         <input name="email" type="email" required autoComplete="username" placeholder="regia@organizzazione.it" className="h-12 w-full rounded-xl border border-white/10 bg-[#111516] px-4 text-sm text-white placeholder:text-[#4f5655] focus:border-[#d1e66a]/60" />
@@ -47,6 +48,6 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
         <span className="flex items-center gap-2"><LockKeyIcon size={17} weight="bold" /> {pending ? "Accesso in corso…" : "Accedi alla regia"}</span>
         <ArrowRightIcon size={17} weight="bold" />
       </button>
-    </form>
+    </form></Localized>
   );
 }

@@ -15,6 +15,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { StadiumMap } from "@/components/stadium-map";
 import { controlPlaneGet } from "@/lib/control-plane";
+import { Localized } from "@/components/dashboard-language";
 
 type EventStatus = "draft" | "published" | "live" | "stopped" | "completed";
 type Event = {
@@ -92,7 +93,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ] : [];
 
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader
         eyebrow="Centro di controllo"
         title="Prepara, verifica, poi vai in scena."
@@ -160,6 +161,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <p className="mt-4 flex items-center gap-2 text-[10px] text-[#707876]"><CircleIcon size={8} weight="fill" className="text-[#77a4a1]" />I dati realtime compaiono solo quando un evento è pubblicato o live.</p>
         </div>
       </section>
-    </div>
+    </div></Localized>
   );
 }

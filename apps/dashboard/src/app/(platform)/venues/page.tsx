@@ -2,6 +2,7 @@ import { ArrowUpRightIcon, BuildingsIcon, MapPinIcon } from "@phosphor-icons/rea
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { controlPlaneGet } from "@/lib/control-plane";
+import { Localized } from "@/components/dashboard-language";
 
 type VenueKind = "stadium" | "arena" | "concert" | "square" | "outdoor" | "fairground" | "custom";
 type VenueMap = { elements?: Array<{ kind: string }> };
@@ -12,7 +13,7 @@ export default async function VenuesPage() {
   const accents = ["#d1e66a", "#e2a65a", "#77a4a1", "#d17667"];
   const kinds: Record<VenueKind, string> = { stadium: "Stadio", arena: "Palazzetto", concert: "Concerto", square: "Piazza", outdoor: "Area esterna", fairground: "Fiera", custom: "Personalizzata" };
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader eyebrow="Strutture" title="Ogni posto ha coordinate precise." description="Genera una base dall'alto, poi modifica liberamente settori, righe, posti, campo, palco e ingressi." action={{ label: "Nuova struttura", href: "/venues/new" }} />
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[1.3fr_0.7fr]">
         {venues.length === 0 && <div className="rounded-[30px] border border-dashed border-white/10 p-12 text-center md:col-span-2"><BuildingsIcon size={28} className="mx-auto text-[#d1e66a]" /><h2 className="mt-4 text-base font-semibold">Crea la prima struttura</h2><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#7d8583]">L’editor guidato genera una base pronta e ti permette di modificare ogni settore, livello e posto.</p></div>}
@@ -53,6 +54,6 @@ export default async function VenuesPage() {
           );
         })}
       </div>
-    </div>
+    </div></Localized>
   );
 }

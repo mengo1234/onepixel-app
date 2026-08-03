@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:auth-forms": "node scripts/check-auth-form-security.mjs"
+    "test:auth-forms": "node scripts/check-auth-form-security.mjs",
+    "test:e2e": "node scripts/dashboard-runtime-e2e.mjs"
   },
   "dependencies": {
     "@onepixel/protocol": "file:../../packages/protocol",

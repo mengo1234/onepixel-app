@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
+import { Localized } from "./dashboard-language";
 
 type PageHeaderProps = {
   eyebrow: string;
@@ -10,7 +11,7 @@ type PageHeaderProps = {
 
 export function PageHeader({ eyebrow, title, description, action }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-6 border-b border-white/8 pb-7 md:flex-row md:items-end md:justify-between">
+    <Localized><header className="flex flex-col gap-6 border-b border-white/8 pb-7 md:flex-row md:items-end md:justify-between">
       <div>
         <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[#d1e66a]">
           {eyebrow}
@@ -30,6 +31,6 @@ export function PageHeader({ eyebrow, title, description, action }: PageHeaderPr
           <ArrowRightIcon size={17} weight="bold" />
         </Link>
       )}
-    </header>
+    </header></Localized>
   );
 }

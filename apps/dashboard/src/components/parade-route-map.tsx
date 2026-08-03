@@ -2,6 +2,7 @@
 
 import { Circle, CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import { useEffect } from "react";
+import { DashboardText } from "./dashboard-language";
 
 export type RoutePoint = { latitude: number; longitude: number };
 export type RouteMapStop = RoutePoint & { id: string; label: string; radiusM?: number; active?: boolean; completed?: boolean };
@@ -48,7 +49,7 @@ export default function ParadeRouteMap({ center, points, stops = [], onAdd, onSe
         return <CircleMarker key={`${point.latitude}-${point.longitude}-${index}`} center={[point.latitude, point.longitude]} radius={selected ? 9 : stop ? 7 : 5} eventHandlers={stop && onSelectStop ? { click: () => onSelectStop(stop.id) } : undefined} pathOptions={{ color: "#0b0d0e", fillColor: color, fillOpacity: 1, weight: selected ? 3 : 2 }}><Tooltip direction="top">{stop?.label ?? `Punto ${index + 1}`}</Tooltip></CircleMarker>;
       })}
       {stops.filter((stop) => stop.radiusM).map((stop) => <Circle key={`radius-${stop.id}`} center={[stop.latitude, stop.longitude]} radius={stop.radiusM} pathOptions={{ color: stop.completed ? "#77a4a1" : "#d1e66a", fillColor: stop.completed ? "#77a4a1" : "#d1e66a", fillOpacity: .07, weight: 1, dashArray: "6 5" }} />)}
-      {leader && <CircleMarker center={[leader.latitude, leader.longitude]} radius={8} pathOptions={{ color: "#f2f3ed", fillColor: "#77a4a1", fillOpacity: 1, weight: 3 }}><Tooltip direction="top">Capofila</Tooltip></CircleMarker>}
+      {leader && <CircleMarker center={[leader.latitude, leader.longitude]} radius={8} pathOptions={{ color: "#f2f3ed", fillColor: "#77a4a1", fillOpacity: 1, weight: 3 }}><Tooltip direction="top"><DashboardText>Capofila</DashboardText></Tooltip></CircleMarker>}
     </MapContainer>
   );
 }

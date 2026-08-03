@@ -18,6 +18,17 @@ Ultimo collaudo locale: 3 agosto 2026.
   predefinita, archivio, ripristino e ripristino della predefinita tutti HTTP 200 via
   proxy dashboard. Il QA visuale corrente a 390/768/1440 px resta aperto perché i due
   browser isolati non erano disponibili nella sessione.
+- Internazionalizzazione dashboard rifatta senza osservatori o riscritture del DOM:
+  dizionario IT/EN tipizzato, lingua risolta lato server tramite cookie, attributo
+  `lang` coerente e localizzazione React delle route operative, superadmin e del nuovo
+  wizard stadio/anelli. Il test runtime conferma HTML visibile interamente inglese
+  all'accesso e sulle pagine protette, preservando i valori inseriti dall'utente.
+- Nuova suite `npm run test:e2e`: crea un database temporaneo, avvia control-plane e
+  dashboard di produzione, prova rendering IT/EN, login reale con cookie HttpOnly,
+  `/dashboard` e `/venues/new`. ESLint, build Next.js, test sicurezza form e suite E2E
+  sono tutti superati il 3 agosto 2026. Il gate visuale della modifica corrente a
+  390/768/1440 px resta aperto perché in questa sessione non è disponibile un browser
+  workspace controllabile; non viene dichiarato come superato sulla sola base HTML.
 
 - Control-plane: 4 file e 24 test API/DB superati; build TypeScript riuscita. Copertura di ruoli, pagamenti e consumo singolo, upgrade, account partecipante, notifiche, QR singolo/massivo, precedenza QR sul GPS, geofence, catasto, media, backup/ripristino, realtime e tracciamento dell'ultimo accesso amministratore.
 - Dashboard: ESLint e build Next.js di produzione riusciti; 20 route generate, incluse editor, wizard evento, regia, upgrade, impostazioni e superadmin. La pagina utenti superadmin è stata verificata a runtime dopo la migrazione `last_login_at`.

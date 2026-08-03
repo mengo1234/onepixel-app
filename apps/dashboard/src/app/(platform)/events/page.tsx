@@ -2,6 +2,7 @@ import { ArrowUpRightIcon, CalendarBlankIcon, WaveformIcon } from "@phosphor-ico
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { controlPlaneGet } from "@/lib/control-plane";
+import { Localized } from "@/components/dashboard-language";
 
 type Event = { id: string; title: string; venue_name: string; starts_at: string; status: "draft" | "published" | "live" | "stopped" | "completed"; package_version: number };
 
@@ -9,7 +10,7 @@ export default async function EventsPage() {
   const events = await controlPlaneGet<Event[]>("/v1/events");
   const statusLabel = { draft: "Bozza", published: "Pronto", live: "Live", stopped: "Arrestato", completed: "Concluso" };
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader eyebrow="Eventi" title="Programma. Prova. Trasmetti." description="Ogni evento contiene assegnazione QR, media, timeline e regia live in un unico flusso controllato." action={{ label: "Sblocca un evento", href: "/checkout" }} />
       <div className="divide-y divide-white/8 border-y border-white/8">
         {events.length === 0 && <div className="py-14 text-center"><CalendarBlankIcon size={28} className="mx-auto text-[#d1e66a]" /><h2 className="mt-4 text-base font-semibold">Nessun evento ancora</h2><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#7d8583]">Sblocca il primo evento e segui la configurazione guidata: struttura, accessi, effetti e regia live.</p></div>}
@@ -34,6 +35,6 @@ export default async function EventsPage() {
           </article>
         ))}
       </div>
-    </div>
+    </div></Localized>
   );
 }

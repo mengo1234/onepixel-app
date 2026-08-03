@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { NewEventForm } from "@/components/new-event-form";
 import { controlPlaneGet, controlPlanePost } from "@/lib/control-plane";
 import { redirect } from "next/navigation";
+import { Localized } from "@/components/dashboard-language";
 
 type Layout = { id: string; name: string; capacity: number; is_default: boolean };
 type Venue = { id: string; name: string; kind: string };
@@ -21,9 +22,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
   const venuesWithLayouts = await Promise.all(venues.map(async (venue) => ({ ...venue, layouts: await controlPlaneGet<Layout[]>(`/v1/venues/${venue.id}/layouts`) })));
   if (venuesWithLayouts.length === 0) redirect("/venues/new?return_to=event");
   return (
-    <div className="space-y-8">
+    <Localized><div className="space-y-8">
       <PageHeader eyebrow="Configurazione guidata" title="Crea il tuo evento, senza saltare nulla." description="Struttura, posizione, QR o GPS, capofila mobile e permessi della regia: il wizard prepara tutto prima dello studio." />
       <NewEventForm venues={venuesWithLayouts} paymentId={payment.id} participantLimit={payment.participant_limit} />
-    </div>
+    </div></Localized>
   );
 }
