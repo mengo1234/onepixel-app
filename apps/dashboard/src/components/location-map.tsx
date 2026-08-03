@@ -3,8 +3,9 @@
 import { CircleMarker, MapContainer, Polygon, TileLayer, useMapEvents } from "react-leaflet";
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
+import type { GeoMultiPolygon, GeoPolygon } from "@onepixel/protocol";
 
-type Boundary = { coordinates?: number[][][] };
+type Boundary = GeoPolygon | GeoMultiPolygon;
 
 function ClickHandler({ onPick }: { onPick: (latitude: number, longitude: number) => void }) {
   useMapEvents({ click: (event) => onPick(event.latlng.lat, event.latlng.lng) });
@@ -18,7 +19,9 @@ function Recenter({ center }: { center: [number, number] }) {
 }
 
 function positions(boundary?: Boundary): [number, number][] {
-  return (boundary?.coordinates?.[0] ?? []).map((coordinate) => [coordinate[1], coordinate[0]] as [number, number]);
+  if (!boundary) return [];
+  const ring = boundary.type === "Polygon" ? boundary.coordinates[0] : boundary.coordinates[0]?.[0];
+  return (ring ?? []).map((coordinate) => [coordinate[1], coordinate[0]] as [number, number]);
 }
 
 export default function LocationMap({ center, boundary, neighbors = [], onPick }: { center: [number, number]; boundary?: Boundary; neighbors?: Boundary[]; onPick: (latitude: number, longitude: number) => void }) {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { migrateVenueDocument, type VenueDocumentV2 } from "../../../packages/protocol/src/index.js";
 import { parseWfsParcels, selectParcel } from "../src/cadastre.js";
 import { countVenueSeats, pointInGeometry, zoneAtLocation } from "../src/geometry.js";
 
@@ -39,6 +40,23 @@ describe("geometrie onePixel", () => {
       }],
     };
     expect(countVenueSeats(document)).toBe(6);
+  });
+
+  it("migra venue v2 in modo idempotente senza cambiare dati o capienza", () => {
+    const legacy: VenueDocumentV2 = {
+      schemaVersion: 2,
+      unit: "m",
+      widthM: 120,
+      heightM: 90,
+      levels: [{ id: "ring-1", name: "Anello inferiore", order: 0 }],
+      elements: [{ id: "N1", kind: "sector", label: "Nord 1", levelId: "ring-1", polygon: [{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 30, y: 25 }], rows: 4, seatsPerRow: 12 }],
+    };
+    const original = JSON.parse(JSON.stringify(legacy));
+    const migrated = migrateVenueDocument(legacy);
+    expect(migrated).toMatchObject({ schemaVersion: 3, planShape: { kind: "custom", center: { x: 60, y: 45 } }, levels: [{ role: "ring" }], elements: [{ scope: "level" }] });
+    expect(countVenueSeats(migrated)).toBe(countVenueSeats(legacy));
+    expect(migrateVenueDocument(migrated)).toEqual(migrated);
+    expect(legacy).toEqual(original);
   });
 });
 

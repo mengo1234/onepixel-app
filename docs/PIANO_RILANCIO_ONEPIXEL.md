@@ -1,6 +1,6 @@
 # Piano di rilancio onePixel
 
-Stato: **bozza da approvare prima dell'implementazione**  
+Stato: **approvato il 3 agosto 2026, implementazione in corso**
 Workspace: `/var/home/fabio/Documenti/Claude/onePixel-NOVA`  
 Data audit: 3 agosto 2026
 
@@ -10,8 +10,8 @@ Portare onePixel da prototipo funzionante a prodotto modificabile e verificabile
 correggendo prima l'editor delle strutture e poi completando dashboard e app Android
 senza perdere i dati e i flussi già funzionanti.
 
-Il lavoro non inizierà finché Fabio non avrà approvato questo piano e risposto alle
-decisioni di prodotto aperte, raccolte una alla volta.
+Il piano è stato approvato da Fabio. Le decisioni sugli anelli concentrici, sulla
+distribuzione della capienza e sul posizionamento al clic sono ora requisiti confermati.
 
 ## 2. Baseline verificata
 

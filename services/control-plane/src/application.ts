@@ -16,7 +16,7 @@ import WebSocket from "ws";
 import { z } from "zod";
 import { OAuth2Client } from "google-auth-library";
 import { get as getBlob, put as putBlob } from "@vercel/blob";
-import type { EventAccessPolicy, GeoGeometry, LiveCommand, OfflineManifest, TimelineCue, VenueDocument, VenueElement } from "../../../packages/protocol/src/index.js";
+import { migrateVenueDocument, type EventAccessPolicy, type GeoGeometry, type LiveCommand, type OfflineManifest, type TimelineCue, type VenueDocument, type VenueDocumentV2, type VenueDocumentV3, type VenueElement } from "../../../packages/protocol/src/index.js";
 import { applyStripeWebhook, confirmEventCheckout, createEventCheckout, eventTiers } from "./billing.js";
 import { lookupCadastre } from "./cadastre.js";
 import { many, one, type Database } from "./database.js";
@@ -156,22 +156,71 @@ const venueElementSchema = z.object({
   rotation: z.number().optional(),
   locked: z.boolean().optional(),
   hidden: z.boolean().optional(),
+  scope: z.enum(["shared", "level"]).optional(),
+  geometry: z.object({
+    type: z.literal("ring-sector"),
+    shape: z.enum(["oval", "circle", "rounded-rectangle", "custom"]),
+    center: point2dSchema,
+    innerWidthM: z.number().nonnegative().max(100_000),
+    innerHeightM: z.number().nonnegative().max(100_000),
+    outerWidthM: z.number().positive().max(100_000),
+    outerHeightM: z.number().positive().max(100_000),
+    cornerRadiusM: z.number().nonnegative().max(50_000).optional(),
+    startAngleDeg: z.number().min(-3600).max(3600),
+    endAngleDeg: z.number().min(-3600).max(3600),
+  }).optional(),
   dimensionsM: z.object({ width: z.number().positive().optional(), height: z.number().positive().optional(), radius: z.number().positive().optional() }).optional(),
   rows: z.number().int().min(0).max(2000).optional(),
   seatsPerRow: z.number().int().min(0).max(2000).optional(),
   rowStyle: z.enum(["straight", "curved"]).optional(),
   seatOverrides: z.array(z.object({ id: z.string(), row: z.string(), number: z.string(), x: z.number(), y: z.number(), accessible: z.boolean().optional(), deleted: z.boolean().optional() })).max(250_000).optional(),
 });
-const venueDocumentSchema = z.object({
+const venueLevelSchema = z.object({
+  id: z.string().min(1).max(120),
+  name: z.string().min(1).max(120),
+  order: z.number().int(),
+  elevationM: z.number().optional(),
+  hidden: z.boolean().optional(),
+  locked: z.boolean().optional(),
+  role: z.enum(["ground", "ring"]).optional(),
+  ring: z.object({
+    index: z.number().int().nonnegative().max(199),
+    capacity: z.number().int().nonnegative().max(2_000_000),
+    sectorCount: z.number().int().positive().max(500),
+    innerOffsetM: z.number().nonnegative().max(50_000),
+    outerOffsetM: z.number().nonnegative().max(50_000),
+  }).optional(),
+});
+const venueDocumentV2Schema = z.object({
   schemaVersion: z.literal(2),
   unit: z.literal("m"),
   widthM: z.number().positive().max(100_000),
   heightM: z.number().positive().max(100_000),
-  levels: z.array(z.object({ id: z.string(), name: z.string().min(1).max(120), order: z.number().int(), elevationM: z.number().optional(), hidden: z.boolean().optional(), locked: z.boolean().optional() })).min(1).max(200),
+  levels: z.array(venueLevelSchema).min(1).max(200),
   elements: z.array(venueElementSchema).max(20_000),
   boundary: geoGeometrySchema.optional(),
   cadastralSources: z.array(z.record(z.string(), z.unknown())).max(100).optional(),
 });
+const venueDocumentV3Schema = z.object({
+  schemaVersion: z.literal(3),
+  unit: z.literal("m"),
+  widthM: z.number().positive().max(100_000),
+  heightM: z.number().positive().max(100_000),
+  planShape: z.object({
+    kind: z.enum(["oval", "circle", "rounded-rectangle", "custom"]),
+    center: point2dSchema,
+    outerWidthM: z.number().positive().max(100_000),
+    outerHeightM: z.number().positive().max(100_000),
+    cornerRadiusM: z.number().nonnegative().max(50_000).optional(),
+    fieldWidthM: z.number().positive().max(100_000).optional(),
+    fieldHeightM: z.number().positive().max(100_000).optional(),
+  }),
+  levels: z.array(venueLevelSchema).min(1).max(200),
+  elements: z.array(venueElementSchema).max(20_000),
+  boundary: geoGeometrySchema.optional(),
+  cadastralSources: z.array(z.record(z.string(), z.unknown())).max(100).optional(),
+});
+const venueDocumentSchema = z.discriminatedUnion("schemaVersion", [venueDocumentV2Schema, venueDocumentV3Schema]).transform((document) => migrateVenueDocument(document as VenueDocument));
 const layoutSchema = z.object({ name: z.string().trim().min(2).max(120), document: venueDocumentSchema, isDefault: z.boolean().default(false) });
 const accessPolicySchema = z.object({
   visibility: z.enum(["public", "private"]).default("public"),
@@ -363,7 +412,7 @@ function generateVenueMap(kind: "stadium" | "arena" | "concert" | "square" | "ou
   return { width: 100, height: 100, elements };
 }
 
-function venueDocumentFromLegacy(map: { width?: number; height?: number; elements?: VenueElement[] }, capacity: number): VenueDocument {
+function venueDocumentFromLegacy(map: { width?: number; height?: number; elements?: VenueElement[] }, capacity: number): VenueDocumentV3 {
   const widthM = 180;
   const heightM = 140;
   const elements = (map.elements ?? []).map((element) => ({
@@ -374,7 +423,8 @@ function venueDocumentFromLegacy(map: { width?: number; height?: number; element
   if (elements.length === 0 && capacity === 0) {
     elements.push({ id: "stage", kind: "stage", label: "Palco", levelId: "level-ground", polygon: [{ x: 65, y: 48 }, { x: 115, y: 48 }, { x: 115, y: 92 }, { x: 65, y: 92 }] });
   }
-  return { schemaVersion: 2, unit: "m", widthM, heightM, levels: [{ id: "level-ground", name: "Piano terra", order: 0, elevationM: 0 }], elements };
+  const legacy: VenueDocumentV2 = { schemaVersion: 2, unit: "m", widthM, heightM, levels: [{ id: "level-ground", name: "Piano terra", order: 0, elevationM: 0 }], elements };
+  return migrateVenueDocument(legacy);
 }
 
 function slugify(value: string): string {

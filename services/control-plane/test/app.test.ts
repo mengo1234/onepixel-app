@@ -101,7 +101,7 @@ describe.sequential("onePixel control plane", () => {
     expect(venue.statusCode).toBe(201);
     selfServeVenueId = venue.json().id;
     selfServeLayoutId = venue.json().layoutId;
-    expect(venue.json().document).toMatchObject({ schemaVersion: 2, unit: "m", levels: [{ name: "Piano terra" }] });
+    expect(venue.json().document).toMatchObject({ schemaVersion: 3, unit: "m", planShape: { kind: "custom" }, levels: [{ name: "Piano terra", role: "ground" }] });
     const layouts = await app.inject({ method: "GET", url: `/v1/venues/${selfServeVenueId}/layouts`, headers: { authorization: `Bearer ${selfServeToken}` } });
     expect(layouts.statusCode).toBe(200);
     expect(layouts.json()[0]).toMatchObject({ id: selfServeLayoutId, is_default: true });

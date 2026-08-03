@@ -3,11 +3,12 @@
 import { CrosshairIcon, MapPinIcon, SpinnerGapIcon } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import type { CadastralSource, GeoMultiPolygon, GeoPolygon } from "@onepixel/protocol";
 
 const LocationMap = dynamic(() => import("./location-map"), { ssr: false, loading: () => <div className="size-full animate-pulse bg-white/[0.035]" /> });
 
-type Geometry = { type: string; coordinates?: number[][][] };
-export type CadastralSelection = { source: Record<string, unknown>; selected?: { geometry: Geometry }; neighbors: Array<{ geometry: Geometry }> };
+type Geometry = GeoPolygon | GeoMultiPolygon;
+export type CadastralSelection = { source: CadastralSource; selected?: { geometry: Geometry }; neighbors: Array<{ geometry: Geometry }> };
 
 export function LocationPicker({ latitude, longitude, onChange, onCadastre }: { latitude: number; longitude: number; onChange: (latitude: number, longitude: number) => void; onCadastre?: (selection: CadastralSelection) => void }) {
   const [cadastre, setCadastre] = useState<CadastralSelection>();

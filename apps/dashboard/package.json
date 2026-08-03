@@ -10,6 +10,7 @@
     "test:auth-forms": "node scripts/check-auth-form-security.mjs"
   },
   "dependencies": {
+    "@onepixel/protocol": "file:../../packages/protocol",
     "@phosphor-icons/react": "^2.1.10",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",

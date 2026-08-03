@@ -28,10 +28,11 @@ import {
 } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { GeoMultiPolygon, GeoPolygon, StadiumRingInput, VenueCapacityMode, VenuePlanShapeKind } from "@onepixel/protocol";
 import { LocationPicker, type CadastralSelection } from "./location-picker";
-import { countSeats, generateVenueDocument, pointInLocalPolygon, polygonBounds, projectGeoBoundaryRings, rectangle, type ElementKind, type StoredLayout, type StoredVenue, type VenueDocument, type VenueElement } from "@/lib/venue-types";
+import { countSeats, generateVenueDocument, parseVenueDocument, pointInLocalPolygon, polygonBounds, projectGeoBoundaryRings, rectangle, type ElementKind, type StoredLayout, type StoredVenue, type VenueDocument, type VenueElement } from "@/lib/venue-types";
 
-type Tool = "select" | "polygon" | "seat";
+type Tool = "select" | "polygon" | "seat" | "place";
 const elementTools: Array<{ kind: ElementKind; label: string; icon: typeof BuildingsIcon }> = [
   { kind: "sector", label: "Settore", icon: GridFourIcon },
   { kind: "stand", label: "Tribuna", icon: StairsIcon },
@@ -57,7 +58,7 @@ const kindLabels: Record<ElementKind, string> = {
 const seatedKinds = new Set<ElementKind>(["sector", "stand", "curve", "block", "accessible-area"]);
 
 function parseDocument(layout: StoredLayout): VenueDocument {
-  return typeof layout.document === "string" ? JSON.parse(layout.document) as VenueDocument : layout.document;
+  return parseVenueDocument(layout.document);
 }
 
 function elementColor(kind: ElementKind, active: boolean) {
@@ -69,7 +70,7 @@ function elementColor(kind: ElementKind, active: boolean) {
   return "#30393a";
 }
 
-function SeatLayer({ document, levelId }: { document: VenueDocument; levelId: string }) {
+function SeatLayer({ document, levelId, showAllRings }: { document: VenueDocument; levelId: string; showAllRings: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -83,20 +84,28 @@ function SeatLayer({ document, levelId }: { document: VenueDocument; levelId: st
       if (!context) return;
       context.scale(ratio, ratio);
       context.clearRect(0, 0, rect.width, rect.height);
+      const scale = Math.min(rect.width / document.widthM, rect.height / document.heightM);
+      const offsetX = (rect.width - document.widthM * scale) / 2;
+      const offsetY = (rect.height - document.heightM * scale) / 2;
       context.fillStyle = "rgba(209,230,106,.55)";
-      for (const element of document.elements.filter((item) => item.levelId === levelId && !item.hidden && (item.rows ?? 0) > 0 && (item.seatsPerRow ?? 0) > 0)) {
+      const visibleLevels = new Set(document.levels.filter((level) => !level.hidden && (showAllRings || level.id === levelId)).map((level) => level.id));
+      for (const element of document.elements.filter((item) => visibleLevels.has(item.levelId ?? "") && !item.hidden && (item.rows ?? 0) > 0 && (item.seatsPerRow ?? 0) > 0)) {
         const bounds = polygonBounds(element.polygon);
         const rows = Math.max(1, element.rows ?? 1);
         const seats = Math.max(1, element.seatsPerRow ?? 1);
         const maxDots = 2400;
         const stride = Math.max(1, Math.ceil(rows * seats / maxDots));
+        const deleted = new Set(element.seatOverrides?.filter((seat) => seat.deleted).map((seat) => `${seat.row}-${seat.number}`) ?? []);
         let dot = 0;
         for (let row = 0; row < rows; row += 1) {
           for (let seat = 0; seat < seats; seat += 1) {
+            if (deleted.has(`${row + 1}-${seat + 1}`)) continue;
             if (dot++ % stride !== 0) continue;
             const curve = element.rowStyle === "curved" ? Math.sin((seat / Math.max(1, seats - 1)) * Math.PI) * bounds.height * 0.08 : 0;
-            const x = ((bounds.x + (seat + 0.5) * bounds.width / seats) / document.widthM) * rect.width;
-            const y = ((bounds.y + (row + 0.5) * bounds.height / rows + curve) / document.heightM) * rect.height;
+            const local = { x: bounds.x + (seat + 0.5) * bounds.width / seats, y: bounds.y + (row + 0.5) * bounds.height / rows + curve };
+            if (!pointInLocalPolygon(local, element.polygon)) continue;
+            const x = offsetX + local.x * scale;
+            const y = offsetY + local.y * scale;
             context.beginPath();
             context.arc(x, y, stride > 1 ? 0.65 : 1.1, 0, Math.PI * 2);
             context.fill();
@@ -105,7 +114,7 @@ function SeatLayer({ document, levelId }: { document: VenueDocument; levelId: st
         context.fillStyle = "rgba(242,243,237,.92)";
         for (const seat of element.seatOverrides?.filter((item) => !item.deleted) ?? []) {
           context.beginPath();
-          context.arc((seat.x / document.widthM) * rect.width, (seat.y / document.heightM) * rect.height, seat.accessible ? 2.4 : 1.7, 0, Math.PI * 2);
+          context.arc(offsetX + seat.x * scale, offsetY + seat.y * scale, seat.accessible ? 2.4 : 1.7, 0, Math.PI * 2);
           context.fill();
         }
         context.fillStyle = "rgba(209,230,106,.55)";
@@ -115,7 +124,7 @@ function SeatLayer({ document, levelId }: { document: VenueDocument; levelId: st
     observer.observe(canvas);
     draw();
     return () => observer.disconnect();
-  }, [document, levelId]);
+  }, [document, levelId, showAllRings]);
   return <canvas ref={ref} className="pointer-events-none absolute inset-0 size-full" aria-hidden />;
 }
 
@@ -165,6 +174,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   const [activeLevelId, setActiveLevelId] = useState(document.levels[0].id);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [tool, setTool] = useState<Tool>("select");
+  const [pendingElementKind, setPendingElementKind] = useState<ElementKind>();
   const [draftPolygon, setDraftPolygon] = useState<Array<{ x: number; y: number }>>([]);
   const [past, setPast] = useState<VenueDocument[]>([]);
   const [future, setFuture] = useState<VenueDocument[]>([]);
@@ -178,7 +188,15 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   const [setupComplete, setSetupComplete] = useState(Boolean(initialVenue));
   const [setupCapacity, setSetupCapacity] = useState(12000);
   const [setupLevels, setSetupLevels] = useState(2);
-  const drag = useRef<{ startX: number; startY: number; before: VenueDocument; originals: Map<string, VenueElement["polygon"]>; moved: boolean } | null>(null);
+  const [setupShape, setSetupShape] = useState<Exclude<VenuePlanShapeKind, "custom">>("oval");
+  const [setupCapacityMode, setSetupCapacityMode] = useState<VenueCapacityMode>("smart");
+  const [setupOuterWidth, setSetupOuterWidth] = useState(205);
+  const [setupOuterHeight, setSetupOuterHeight] = useState(155);
+  const [setupFieldWidth, setSetupFieldWidth] = useState(105);
+  const [setupFieldHeight, setSetupFieldHeight] = useState(68);
+  const [setupRings, setSetupRings] = useState<StadiumRingInput[]>([{ name: "Anello 1", capacity: 5500, sectorCount: 8 }, { name: "Anello 2", capacity: 6500, sectorCount: 10 }]);
+  const [showAllRings, setShowAllRings] = useState(true);
+  const drag = useRef<{ startX: number; startY: number; before: VenueDocument; originals: Map<string, VenueElement>; moved: boolean } | null>(null);
   const vertexDrag = useRef<{ elementId: string; vertexIndex: number; before: VenueDocument } | null>(null);
   const board = useRef<SVGSVGElement>(null);
   const selected = document.elements.find((element) => element.id === selectedIds[0]);
@@ -193,6 +211,8 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       ? selected
         ? `Aggiungi posti a ${selected.label}: clicca sulla pianta nel punto desiderato.`
         : "Prima seleziona un settore con posti, poi usa questo strumento."
+      : tool === "place" && pendingElementKind
+        ? `Clicca sulla pianta dove vuoi inserire ${kindLabels[pendingElementKind].toLowerCase()}.`
       : selected
         ? `Stai modificando ${selected.label}. Trascinalo sulla pianta o usa le proprietà a destra.`
         : "Seleziona un elemento sulla pianta per spostarlo o modificarlo.";
@@ -263,9 +283,10 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   }, [saved]);
 
   function worldPoint(event: Pick<ReactPointerEvent<Element>, "clientX" | "clientY">) {
-    const rect = board.current?.getBoundingClientRect();
-    if (!rect) return { x: 0, y: 0 };
-    return { x: (event.clientX - rect.left) / rect.width * document.widthM, y: (event.clientY - rect.top) / rect.height * document.heightM };
+    const matrix = board.current?.getScreenCTM();
+    if (!matrix) return { x: 0, y: 0 };
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+    return { x: point.x, y: point.y };
   }
 
   function boardPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
@@ -277,6 +298,19 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       commit({ ...document, elements: document.elements.map((element) => element.id === selected.id ? { ...element, seatOverrides: [...(element.seatOverrides ?? []), seat] } : element) });
       return;
     }
+    if (tool === "place" && pendingElementKind) {
+      const kind = pendingElementKind;
+      const width = kind === "entrance" || kind === "exit" ? 8 : kind === "aisle" || kind === "barrier" ? 42 : 32;
+      const height = kind === "entrance" || kind === "exit" ? 5 : kind === "aisle" || kind === "barrier" ? 4 : 18;
+      const x = Math.max(0, Math.min(document.widthM - width, point.x - width / 2));
+      const y = Math.max(0, Math.min(document.heightM - height, point.y - height / 2));
+      const element: VenueElement = { id: `${kind}-${crypto.randomUUID()}`, kind, label: `${kindLabels[kind]} ${document.elements.filter((item) => item.kind === kind).length + 1}`, levelId: activeLevelId, scope: "level", polygon: rectangle(x, y, width, height), rows: seatedKinds.has(kind) ? 12 : undefined, seatsPerRow: seatedKinds.has(kind) ? 28 : undefined, rowStyle: kind === "curve" ? "curved" : "straight" };
+      commit({ ...document, elements: [...document.elements, element] });
+      setSelectedIds([element.id]);
+      setPendingElementKind(undefined);
+      setTool("select");
+      return;
+    }
     if (event.target === event.currentTarget) setSelectedIds([]);
   }
 
@@ -286,7 +320,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     const point = worldPoint(event);
     const nextSelection = event.shiftKey ? (selectedIds.includes(element.id) ? selectedIds.filter((id) => id !== element.id) : [...selectedIds, element.id]) : selectedIds.includes(element.id) ? selectedIds : [element.id];
     setSelectedIds(nextSelection);
-    const originals = new Map(document.elements.filter((item) => nextSelection.includes(item.id)).map((item) => [item.id, item.polygon.map((vertex) => ({ ...vertex }))]));
+    const originals = new Map(document.elements.filter((item) => nextSelection.includes(item.id)).map((item) => [item.id, structuredClone(item)]));
     drag.current = { startX: point.x, startY: point.y, before: document, originals, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -300,7 +334,12 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) active.moved = true;
     setDocument((current) => ({ ...current, elements: current.elements.map((element) => {
       const original = active.originals.get(element.id);
-      return original ? { ...element, polygon: original.map((vertex) => ({ x: vertex.x + dx, y: vertex.y + dy })) } : element;
+      return original ? {
+        ...element,
+        polygon: original.polygon.map((vertex) => ({ x: vertex.x + dx, y: vertex.y + dy })),
+        geometry: original.geometry ? { ...original.geometry, center: { x: original.geometry.center.x + dx, y: original.geometry.center.y + dy } } : undefined,
+        seatOverrides: original.seatOverrides?.map((seat) => ({ ...seat, x: seat.x + dx, y: seat.y + dy })),
+      } : element;
     }) }));
     setSaved(false);
   }
@@ -338,12 +377,8 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   }
 
   function addElement(kind: ElementKind) {
-    const width = kind === "entrance" || kind === "exit" ? 8 : kind === "aisle" || kind === "barrier" ? 42 : 32;
-    const height = kind === "entrance" || kind === "exit" ? 5 : kind === "aisle" || kind === "barrier" ? 4 : 18;
-    const element: VenueElement = { id: `${kind}-${crypto.randomUUID()}`, kind, label: `${kindLabels[kind]} ${document.elements.filter((item) => item.kind === kind).length + 1}`, levelId: activeLevelId, polygon: rectangle(document.widthM / 2 - width / 2, document.heightM / 2 - height / 2, width, height), rows: seatedKinds.has(kind) ? 12 : undefined, seatsPerRow: seatedKinds.has(kind) ? 28 : undefined, rowStyle: kind === "curve" ? "curved" : "straight" };
-    commit({ ...document, elements: [...document.elements, element] });
-    setSelectedIds([element.id]);
-    setTool("select");
+    setPendingElementKind(kind);
+    setTool("place");
   }
 
   function updateElement(patch: Partial<VenueElement>) {
@@ -382,7 +417,14 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   function regenerate() {
     if (!window.confirm("Rigenerare la pianta di base? Le modifiche attuali saranno sostituite, ma potrai usare Annulla.")) return;
     const capacity = Math.max(100, totalSeats || 12000);
-    const next = generateVenueDocument(venueKind, capacity, document.levels.length);
+    const next = generateVenueDocument(venueKind, capacity, document.levels.length, {
+      shape: document.planShape.kind === "custom" ? undefined : document.planShape.kind,
+      outerWidthM: document.planShape.outerWidthM,
+      outerHeightM: document.planShape.outerHeightM,
+      fieldWidthM: document.planShape.fieldWidthM,
+      fieldHeightM: document.planShape.fieldHeightM,
+      rings: document.levels.map((level) => ({ name: level.name, sectorCount: level.ring?.sectorCount })),
+    });
     commit(next);
     setActiveLevelId(next.levels[0].id);
     setSelectedIds([]);
@@ -442,7 +484,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     const previous = combine ? document.boundary : undefined;
     const polygons = geometry.type === "MultiPolygon" ? geometry.coordinates : [geometry.coordinates];
     const previousPolygons = previous?.type === "MultiPolygon" ? previous.coordinates : previous?.type === "Polygon" ? [previous.coordinates] : [];
-    const boundary = previousPolygons.length > 0 || polygons.length > 1 ? { type: "MultiPolygon", coordinates: [...previousPolygons, ...polygons] } : { type: "Polygon", coordinates: polygons[0] };
+    const boundary: GeoPolygon | GeoMultiPolygon = previousPolygons.length > 0 || polygons.length > 1 ? { type: "MultiPolygon", coordinates: [...previousPolygons, ...polygons] } : { type: "Polygon", coordinates: polygons[0] };
     const rings = projectGeoBoundaryRings(boundary, document.widthM, document.heightM);
     const boundaryElements: VenueElement[] = rings.map((polygon, index) => ({ id: `cadastre-${crypto.randomUUID()}`, kind: "free-area", label: `Confine lotto ${index + 1}`, levelId: activeLevelId, parentId: "__cadastral_boundary__", polygon }));
     commit({ ...document, boundary, cadastralSources: combine ? [...(document.cadastralSources ?? []), source] : [source], elements: [...boundaryElements, ...document.elements.filter((element) => element.parentId !== "__cadastral_boundary__")] });
@@ -452,13 +494,36 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
   }
 
   function generateInitialVenue() {
-    const next = generateVenueDocument(venueKind, setupCapacity, setupLevels);
-    setDocument(next);
-    setActiveLevelId(next.levels[0].id);
-    setPast([]);
-    setFuture([]);
-    setSaved(false);
-    setSetupComplete(true);
+    setError("");
+    const manualTotal = setupRings.reduce((sum, ring) => sum + (ring.capacity ?? 0), 0);
+    if ((venueKind === "stadium" || venueKind === "arena") && setupCapacityMode === "manual" && manualTotal !== setupCapacity) {
+      setError(`Le capienze degli anelli sommano ${manualTotal.toLocaleString("it-IT")}, ma il totale richiesto è ${setupCapacity.toLocaleString("it-IT")}.`);
+      return;
+    }
+    try {
+      const next = generateVenueDocument(venueKind, setupCapacity, setupLevels, { shape: setupShape, capacityMode: setupCapacityMode, outerWidthM: setupOuterWidth, outerHeightM: setupOuterHeight, fieldWidthM: setupFieldWidth, fieldHeightM: setupFieldHeight, rings: setupRings });
+      setDocument(next);
+      setActiveLevelId(next.levels[0].id);
+      setPast([]);
+      setFuture([]);
+      setSaved(false);
+      setSetupComplete(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Configurazione dello stadio non valida.");
+    }
+  }
+
+  function updateSetupRing(index: number, patch: StadiumRingInput) {
+    setSetupRings((rings) => rings.map((ring, ringIndex) => ringIndex === index ? { ...ring, ...patch } : ring));
+  }
+
+  function changeSetupLevels(nextCount: number) {
+    setSetupLevels(nextCount);
+    setSetupRings((current) => Array.from({ length: nextCount }, (_, index) => current[index] ?? {
+      name: `Anello ${index + 1}`,
+      capacity: Math.floor(setupCapacity / nextCount) + (index < setupCapacity % nextCount ? 1 : 0),
+      sectorCount: Math.max(4, Math.min(32, Math.round(setupCapacity / nextCount / 900))),
+    }));
   }
 
   if (!setupComplete) {
@@ -470,7 +535,35 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       { value: "outdoor", label: "Area esterna", note: "Cortei e spazi liberi" },
       { value: "custom", label: "Da zero", note: "Tavola completamente libera" },
     ];
-    return <div className="grid overflow-hidden rounded-[34px] border border-white/10 bg-[#101415] shadow-[0_28px_90px_-40px_rgba(0,0,0,.85)] xl:grid-cols-[minmax(0,1.15fr)_380px]"><section className="p-6 sm:p-8"><p className="font-mono text-[9px] uppercase tracking-[.2em] text-[#d1e66a]">PASSO 01 · BASE AUTOMATICA</p><h2 className="mt-3 max-w-xl text-3xl font-semibold tracking-[-.05em]">Che spazio vuoi costruire?</h2><p className="mt-3 max-w-xl text-xs leading-5 text-[#858d8b]">onePixel genera una pianta dall&apos;alto proporzionata alla capienza. Dopo questo passo ogni vertice, fila, posto e livello rimane modificabile.</p><div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{options.map((option) => <button type="button" key={option.value} onClick={() => setVenueKind(option.value)} className={`min-h-28 rounded-[22px] border p-4 text-left transition ${venueKind === option.value ? "border-[#d1e66a]/45 bg-[#d1e66a]/9" : "border-white/8 bg-white/[.02] hover:border-white/15"}`}><BuildingsIcon size={20} className={venueKind === option.value ? "text-[#d1e66a]" : "text-[#68706f]"} /><span className="mt-4 block text-sm font-semibold text-white">{option.label}</span><span className="mt-1 block text-[10px] text-[#707876]">{option.note}</span></button>)}</div></section><aside className="border-t border-white/10 bg-[#0d1112] p-6 sm:p-8 xl:border-l xl:border-t-0"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">DIMENSIONAMENTO</p><div className="mt-6 space-y-5"><label className="editor-label">Nome struttura<input value={name} onChange={(event) => setName(event.target.value)} className="editor-input h-11" /></label><label className="editor-label">Quanti posti?<input type="number" min={0} max={1000000} step={100} value={setupCapacity} onChange={(event) => setSetupCapacity(Math.max(0, Number(event.target.value)))} className="editor-input h-11 font-mono" /></label><label className="editor-label">Livelli / anelli<select value={setupLevels} onChange={(event) => setSetupLevels(Number(event.target.value))} className="editor-input h-11">{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} {index === 0 ? "livello" : "livelli"}</option>)}</select></label><div className="rounded-2xl border border-white/8 bg-white/[.025] p-4"><p className="font-mono text-2xl text-[#d1e66a]">{setupCapacity.toLocaleString("it-IT")}</p><p className="mt-1 text-[10px] text-[#707876]">posti distribuiti automaticamente su {setupLevels} {setupLevels === 1 ? "livello" : "livelli"}</p></div><button type="button" disabled={name.trim().length < 2} onClick={generateInitialVenue} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#d1e66a] text-sm font-semibold text-[#101314] disabled:opacity-30">Genera la pianta <ArrowUUpRightIcon size={17} weight="bold" /></button></div></aside></div>;
+    const shapeOptions: Array<{ value: Exclude<VenuePlanShapeKind, "custom">; label: string; note: string }> = [
+      { value: "oval", label: "Ovale", note: "Calcio e atletica" },
+      { value: "circle", label: "Circolare", note: "Arene compatte" },
+      { value: "rounded-rectangle", label: "Rettangolo stondato", note: "Tribune più lineari" },
+    ];
+    const manualTotal = setupRings.reduce((sum, ring) => sum + (ring.capacity ?? 0), 0);
+    let previewRingCapacities: number[] = [];
+    if ((venueKind === "stadium" || venueKind === "arena") && setupCapacityMode !== "manual") {
+      try {
+        previewRingCapacities = generateVenueDocument(venueKind, setupCapacity, setupLevels, { shape: setupShape, capacityMode: setupCapacityMode, outerWidthM: setupOuterWidth, outerHeightM: setupOuterHeight, fieldWidthM: setupFieldWidth, fieldHeightM: setupFieldHeight, rings: setupRings }).levels.map((level) => level.ring?.capacity ?? 0);
+      } catch { previewRingCapacities = []; }
+    }
+    return <div className="overflow-hidden rounded-[34px] border border-white/10 bg-[#101415] shadow-[0_28px_90px_-40px_rgba(0,0,0,.85)]">
+      <div className="border-b border-white/10 p-6 sm:p-8"><p className="font-mono text-[9px] uppercase tracking-[.2em] text-[#d1e66a]">CONFIGURAZIONE GUIDATA · PRIMA DELLA PIANTA</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.05em]">Com&apos;è fatto davvero lo stadio?</h2><p className="mt-3 max-w-3xl text-xs leading-5 text-[#858d8b]">Definisci forma, anelli, capienza e settori. onePixel costruirà bande concentriche reali, tutte visibili e selezionabili singolarmente.</p></div>
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="space-y-8 p-6 sm:p-8">
+          <section><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">01 · TIPO DI SPAZIO</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{options.map((option) => <button type="button" key={option.value} onClick={() => setVenueKind(option.value)} className={`min-h-24 rounded-[20px] border p-4 text-left transition ${venueKind === option.value ? "border-[#d1e66a]/45 bg-[#d1e66a]/9" : "border-white/8 bg-white/[.02] hover:border-white/15"}`}><BuildingsIcon size={18} className={venueKind === option.value ? "text-[#d1e66a]" : "text-[#68706f]"} /><span className="mt-3 block text-xs font-semibold text-white">{option.label}</span><span className="mt-1 block text-[9px] text-[#707876]">{option.note}</span></button>)}</div></section>
+          {(venueKind === "stadium" || venueKind === "arena") && <>
+            <section><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">02 · FORMA VISTA DALL&apos;ALTO</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{shapeOptions.map((shape) => <button type="button" key={shape.value} onClick={() => setSetupShape(shape.value)} className={`rounded-[20px] border p-4 text-left transition ${setupShape === shape.value ? "border-[#d1e66a]/45 bg-[#d1e66a]/9" : "border-white/8 bg-white/[.02]"}`}><span className="block text-xs font-semibold text-white">{shape.label}</span><span className="mt-1 block text-[9px] text-[#707876]">{shape.note}</span></button>)}</div><p className="mt-3 rounded-xl border border-white/8 bg-white/[.02] p-3 text-[10px] text-[#7f8886]">Forma personalizzata/importata: genera prima la base, poi usa <span className="text-[#d1e66a]">Importa da mappa</span> nell&apos;editor.</p></section>
+            <section><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">03 · ANELLI E SETTORI</p><p className="mt-2 text-xs text-[#929a98]">Ogni anello può avere nome, capienza e numero di settori diversi.</p></div><label className="editor-label w-32">Numero anelli<select value={setupLevels} onChange={(event) => changeSetupLevels(Number(event.target.value))} className="editor-input h-10">{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label></div>
+              <div className="mt-4 grid gap-2">{setupRings.map((ring, index) => <div key={index} className="grid gap-2 rounded-2xl border border-white/8 bg-white/[.02] p-3 sm:grid-cols-[minmax(120px,1fr)_140px_120px]"><label className="editor-label">Nome<input value={ring.name ?? ""} onChange={(event) => updateSetupRing(index, { name: event.target.value })} className="editor-input" /></label><label className="editor-label">Capienza<input type="number" min="1" value={setupCapacityMode === "manual" ? ring.capacity ?? 0 : previewRingCapacities[index] ?? 0} disabled={setupCapacityMode !== "manual"} onChange={(event) => updateSetupRing(index, { capacity: Math.max(1, Number(event.target.value)) })} className="editor-input font-mono disabled:opacity-60" /></label><label className="editor-label">Settori<input type="number" min="1" max="64" value={ring.sectorCount ?? 1} onChange={(event) => updateSetupRing(index, { sectorCount: Math.max(1, Number(event.target.value)) })} className="editor-input font-mono" /></label></div>)}</div>
+            </section>
+          </>}
+        </div>
+        <aside className="border-t border-white/10 bg-[#0d1112] p-6 sm:p-8 xl:border-l xl:border-t-0"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">04 · DIMENSIONAMENTO</p><div className="mt-6 space-y-5"><label className="editor-label">Nome struttura<input value={name} onChange={(event) => setName(event.target.value)} className="editor-input h-11" /></label><label className="editor-label">Capienza totale<input type="number" min={1} max={1000000} step={100} value={setupCapacity} onChange={(event) => setSetupCapacity(Math.max(1, Number(event.target.value)))} className="editor-input h-11 font-mono" /></label>
+          {(venueKind === "stadium" || venueKind === "arena") && <><label className="editor-label">Distribuzione<select value={setupCapacityMode} onChange={(event) => setSetupCapacityMode(event.target.value as VenueCapacityMode)} className="editor-input h-11"><option value="smart">Intelligente, in base alla geometria</option><option value="equal">Uguale tra gli anelli</option><option value="manual">Manuale per anello</option></select></label><div className="grid grid-cols-2 gap-2"><label className="editor-label">Stadio larghezza<input type="number" min="60" value={setupOuterWidth} onChange={(event) => setSetupOuterWidth(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Stadio altezza<input type="number" min="60" value={setupOuterHeight} onChange={(event) => setSetupOuterHeight(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Campo larghezza<input type="number" min="20" value={setupFieldWidth} onChange={(event) => setSetupFieldWidth(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Campo altezza<input type="number" min="20" value={setupFieldHeight} onChange={(event) => setSetupFieldHeight(Number(event.target.value))} className="editor-input font-mono" /></label></div></>}
+          <div className={`rounded-2xl border p-4 ${setupCapacityMode === "manual" && manualTotal !== setupCapacity ? "border-[#e2a65a]/30 bg-[#e2a65a]/8" : "border-[#d1e66a]/20 bg-[#d1e66a]/6"}`}><p className="font-mono text-2xl text-[#d1e66a]">{setupCapacity.toLocaleString("it-IT")}</p><p className="mt-1 text-[10px] text-[#89918f]">{setupCapacityMode === "manual" ? `Somma anelli: ${manualTotal.toLocaleString("it-IT")}` : `Distribuzione ${setupCapacityMode === "smart" ? "geometrica intelligente" : "uguale"}`}</p></div>{error && <p role="alert" className="rounded-xl border border-[#e26d5a]/25 bg-[#e26d5a]/10 p-3 text-xs text-[#f1a193]">{error}</p>}<button type="button" disabled={name.trim().length < 2 || setupCapacity < 1 || ((venueKind === "stadium" || venueKind === "arena") && setupCapacityMode === "manual" && manualTotal !== setupCapacity)} onClick={generateInitialVenue} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#d1e66a] text-sm font-semibold text-[#101314] disabled:opacity-30">Genera anelli e pianta <ArrowUUpRightIcon size={17} weight="bold" /></button></div></aside>
+      </div>
+    </div>;
   }
 
   return (
@@ -494,16 +587,19 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
           </div>
           <p className="mt-3 rounded-xl border border-[#d1e66a]/15 bg-[#d1e66a]/6 p-3 text-[10px] leading-4 text-[#b9c48b]" aria-live="polite">{toolHelp}</p>
           <p className="mb-2 mt-6 font-mono text-[9px] uppercase tracking-[.18em] text-[#616967]">AGGIUNGI ELEMENTO</p>
-          <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">{visibleElementTools.map(({ kind, label, icon: Icon }) => <button key={kind} type="button" onClick={() => addElement(kind)} title={`Aggiungi ${label.toLowerCase()} al centro della pianta`} className="editor-tool"><Icon size={17} />{label}</button>)}</div>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-1">{visibleElementTools.map(({ kind, label, icon: Icon }) => <button key={kind} type="button" onClick={() => addElement(kind)} title={`Scegli dove inserire ${label.toLowerCase()}`} className={`editor-tool ${tool === "place" && pendingElementKind === kind ? "editor-tool-active" : ""}`}><Icon size={17} />{label}</button>)}</div>
           <button type="button" onClick={() => setShowAdvancedElements((value) => !value)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/8 px-3 py-2.5 text-[10px] text-[#858d8b] transition hover:border-white/20 hover:text-white" aria-expanded={showAdvancedElements}><CaretDownIcon size={14} className={`transition ${showAdvancedElements ? "rotate-180" : ""}`} />{showAdvancedElements ? "Nascondi elementi avanzati" : "Mostra altri elementi"}</button>
           <div className="mt-6 border-t border-white/8 pt-4"><label className="grid gap-2 text-[10px] text-[#858d8b]">Tipo struttura<select value={venueKind} onChange={(event) => setVenueKind(event.target.value as StoredVenue["kind"])} className="h-10 rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white"><option value="stadium">Stadio</option><option value="arena">Palazzetto</option><option value="concert">Concerto</option><option value="square">Piazza</option><option value="outdoor">Area esterna</option><option value="fairground">Fiera</option><option value="custom">Personalizzata</option></select></label><button type="button" onClick={regenerate} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#e2a65a]/20 text-xs text-[#c7a56f] transition hover:bg-[#e2a65a]/8 hover:text-white" title="Sostituisce la pianta attuale con una nuova base automatica"><ArrowCounterClockwiseIcon size={16} />Rigenera tutta la pianta</button><p className="mt-2 text-[9px] leading-4 text-[#68716f]">Azione avanzata: sostituisce gli elementi attuali dopo una conferma.</p></div>
         </aside>
 
         <section className="relative min-h-[560px] overflow-hidden bg-[#0b0e0f] surface-grid">
-          <div className="absolute left-4 top-4 z-[2] flex flex-wrap gap-2"><span className="rounded-full border border-white/10 bg-[#0c1011]/90 px-3 py-1.5 font-mono text-[9px] text-[#aab1af] backdrop-blur">{document.levels.find((level) => level.id === activeLevelId)?.name}</span>{document.boundary && <span className="rounded-full border border-[#d1e66a]/25 bg-[#d1e66a]/10 px-3 py-1.5 font-mono text-[9px] text-[#d1e66a]">CONFINE CATASTALE COLLEGATO</span>}{outsideCount > 0 && <span className="rounded-full border border-[#e2a65a]/25 bg-[#e2a65a]/10 px-3 py-1.5 font-mono text-[9px] text-[#e2a65a]">{outsideCount} FUORI CONFINE</span>}</div>
+          <div className="absolute left-4 top-4 z-[2] flex flex-wrap gap-2"><button type="button" onClick={() => setShowAllRings((value) => !value)} className={`rounded-full border px-3 py-1.5 font-mono text-[9px] backdrop-blur ${showAllRings ? "border-[#d1e66a]/30 bg-[#d1e66a]/10 text-[#d1e66a]" : "border-white/10 bg-[#0c1011]/90 text-[#aab1af]"}`}>{showAllRings ? "TUTTI GLI ANELLI" : `SOLO ${document.levels.find((level) => level.id === activeLevelId)?.name.toUpperCase()}`}</button>{document.boundary && <span className="rounded-full border border-[#d1e66a]/25 bg-[#d1e66a]/10 px-3 py-1.5 font-mono text-[9px] text-[#d1e66a]">CONFINE CATASTALE COLLEGATO</span>}{outsideCount > 0 && <span className="rounded-full border border-[#e2a65a]/25 bg-[#e2a65a]/10 px-3 py-1.5 font-mono text-[9px] text-[#e2a65a]">{outsideCount} FUORI CONFINE</span>}</div>
           <div className="absolute inset-4 top-16 overflow-hidden rounded-[26px] border border-white/10 bg-[#111617] shadow-[inset_0_0_80px_rgba(0,0,0,.28)] sm:inset-6 sm:top-16">
-            <svg ref={board} viewBox={`0 0 ${document.widthM} ${document.heightM}`} preserveAspectRatio="none" onPointerDown={boardPointerDown} className="absolute inset-0 size-full touch-none" aria-label="Tavola 2D della struttura">
-              {document.elements.filter((element) => (element.levelId === activeLevelId || element.parentId === "__cadastral_boundary__") && !element.hidden).map((element) => {
+            <svg ref={board} viewBox={`0 0 ${document.widthM} ${document.heightM}`} preserveAspectRatio="xMidYMid meet" onPointerDown={boardPointerDown} className={`absolute inset-0 size-full touch-none ${tool === "place" ? "cursor-crosshair" : ""}`} aria-label="Tavola 2D della struttura">
+              {document.elements.filter((element) => {
+                const level = document.levels.find((item) => item.id === element.levelId);
+                return !element.hidden && !level?.hidden && (element.scope === "shared" || element.parentId === "__cadastral_boundary__" || (showAllRings ? level?.role === "ring" : element.levelId === activeLevelId));
+              }).map((element) => {
                 const active = selectedIds.includes(element.id);
                 const isBoundary = element.parentId === "__cadastral_boundary__";
                 const bounds = polygonBounds(element.polygon);
@@ -512,7 +608,7 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
               })}
               {draftPolygon.length > 0 && <polyline points={draftPolygon.map((point) => `${point.x},${point.y}`).join(" ")} fill="rgba(209,230,106,.08)" stroke="#d1e66a" strokeWidth=".7" strokeDasharray="2 2" />}
             </svg>
-            <SeatLayer document={document} levelId={activeLevelId} />
+            <SeatLayer document={document} levelId={activeLevelId} showAllRings={showAllRings} />
           </div>
           {tool === "polygon" && <div className="absolute bottom-5 left-1/2 z-[3] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#0b0e0f]/95 p-1.5 pl-4 text-[10px] text-[#aab1af] backdrop-blur-xl"><span>Clicca i vertici, poi completa</span><button type="button" onClick={completePolygon} disabled={draftPolygon.length < 3} className="rounded-full bg-[#d1e66a] px-3 py-1.5 font-semibold text-[#101314] disabled:opacity-30">Completa</button><button type="button" onClick={() => { setDraftPolygon([]); setTool("select"); }} className="grid size-7 place-items-center rounded-full hover:bg-white/5" aria-label="Annulla forma"><XIcon size={14} /></button></div>}
         </section>

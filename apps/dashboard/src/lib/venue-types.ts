@@ -1,26 +1,39 @@
-export type Point2D = { x: number; y: number };
+import {
+  generateStadiumVenueDocument,
+  migrateVenueDocument,
+  type Point2D as ProtocolPoint2D,
+  type VenueDocument as ProtocolVenueDocument,
+  type VenueDocumentV3,
+  type VenueElement as ProtocolVenueElement,
+  type VenueElementKind,
+  type VenueLevel as ProtocolVenueLevel,
+  type StadiumRingInput,
+  type VenueCapacityMode,
+  type VenuePlanShapeKind,
+} from "@onepixel/protocol";
+
+export type Point2D = ProtocolPoint2D;
 export type VenueKind = "stadium" | "arena" | "concert" | "square" | "outdoor" | "fairground" | "custom";
-export type ElementKind = "sector" | "stand" | "curve" | "block" | "field" | "stage" | "runway" | "entrance" | "exit" | "aisle" | "barrier" | "technical-area" | "standing-area" | "accessible-area" | "free-area";
-export type VenueLevel = { id: string; name: string; order: number; elevationM?: number; hidden?: boolean; locked?: boolean };
-export type VenueElement = {
-  id: string;
-  kind: ElementKind;
-  label: string;
-  polygon: Point2D[];
-  levelId?: string;
-  parentId?: string;
-  rotation?: number;
-  locked?: boolean;
-  hidden?: boolean;
-  dimensionsM?: { width?: number; height?: number; radius?: number };
-  rows?: number;
-  seatsPerRow?: number;
-  rowStyle?: "straight" | "curved";
-  seatOverrides?: Array<{ id: string; row: string; number: string; x: number; y: number; accessible?: boolean; deleted?: boolean }>;
-};
-export type VenueDocument = { schemaVersion: 2; unit: "m"; widthM: number; heightM: number; levels: VenueLevel[]; elements: VenueElement[]; boundary?: { type: string; coordinates: unknown[] }; cadastralSources?: Array<Record<string, unknown>> };
-export type StoredLayout = { id: string; name: string; version: number; is_default: boolean; capacity: number; document: VenueDocument | string };
+export type ElementKind = VenueElementKind;
+export type VenueLevel = ProtocolVenueLevel;
+export type VenueElement = ProtocolVenueElement;
+export type VenueDocument = VenueDocumentV3;
+export type StoredLayout = { id: string; name: string; version: number; is_default: boolean; capacity: number; document: ProtocolVenueDocument | string };
 export type StoredVenue = { id: string; name: string; kind: VenueKind; capacity: number; map: unknown };
+export type VenueGenerationOptions = {
+  shape?: Exclude<VenuePlanShapeKind, "custom">;
+  capacityMode?: VenueCapacityMode;
+  outerWidthM?: number;
+  outerHeightM?: number;
+  fieldWidthM?: number;
+  fieldHeightM?: number;
+  rings?: StadiumRingInput[];
+};
+
+export function parseVenueDocument(value: ProtocolVenueDocument | string): VenueDocument {
+  const parsed = typeof value === "string" ? JSON.parse(value) as ProtocolVenueDocument : value;
+  return migrateVenueDocument(parsed);
+}
 
 export function polygonBounds(polygon: Point2D[]) {
   const xs = polygon.map((point) => point.x);
@@ -65,10 +78,23 @@ export function pointInLocalPolygon(point: Point2D, polygon: Point2D[]): boolean
   return inside;
 }
 
-export function generateVenueDocument(kind: VenueKind, capacity: number, levelsCount = 1): VenueDocument {
+export function generateVenueDocument(kind: VenueKind, capacity: number, levelsCount = 1, options: VenueGenerationOptions = {}): VenueDocument {
   const widthM = kind === "stadium" ? 220 : kind === "arena" ? 130 : 180;
   const heightM = kind === "stadium" ? 170 : kind === "arena" ? 100 : 130;
-  const levels = Array.from({ length: levelsCount }, (_, index) => ({ id: `template-level-${index + 1}`, name: levelsCount === 1 ? "Piano terra" : `Anello ${index + 1}`, order: index, elevationM: index * 8 }));
+  if (kind === "stadium" || kind === "arena") {
+    return generateStadiumVenueDocument({
+      shape: options.shape ?? (kind === "arena" ? "circle" : "oval"),
+      outerWidthM: options.outerWidthM ?? (kind === "stadium" ? 205 : 112),
+      outerHeightM: options.outerHeightM ?? (kind === "stadium" ? 155 : 92),
+      fieldWidthM: options.fieldWidthM ?? (kind === "stadium" ? 105 : 54),
+      fieldHeightM: options.fieldHeightM ?? (kind === "stadium" ? 68 : 32),
+      totalCapacity: Math.max(1, Math.round(capacity)),
+      ringCount: Math.max(1, Math.round(levelsCount)),
+      capacityMode: options.capacityMode,
+      rings: options.rings,
+    });
+  }
+  const levels: VenueLevel[] = Array.from({ length: levelsCount }, (_, index) => ({ id: `template-level-${index + 1}`, name: levelsCount === 1 ? "Piano terra" : `Anello ${index + 1}`, order: index, elevationM: index * 8, role: levelsCount === 1 ? "ground" : "ring" }));
   const sectorCount = Math.max(4, Math.min(32, Math.ceil(Math.max(capacity, 200) / 900)));
   const perLevel = Math.ceil(sectorCount / levels.length);
   const elements: VenueElement[] = [];
@@ -78,15 +104,16 @@ export function generateVenueDocument(kind: VenueKind, capacity: number, levelsC
       const angle = (index / Math.max(1, count)) * Math.PI * 2;
       const cx = widthM / 2 + Math.cos(angle) * widthM * 0.37;
       const cy = heightM / 2 + Math.sin(angle) * heightM * 0.37;
-      const width = kind === "arena" ? 24 : 34;
-      const height = kind === "arena" ? 13 : 18;
+      const width = 34;
+      const height = 18;
       const seats = Math.ceil(capacity / Math.max(1, sectorCount));
-      elements.push({ id: `template-sector-${levelIndex + 1}-${index + 1}`, kind: "sector", label: `Settore ${levelIndex + 1}.${index + 1}`, levelId: level.id, polygon: rectangle(cx - width / 2, cy - height / 2, width, height), rotation: angle * 180 / Math.PI + 90, rows: Math.max(1, Math.ceil(seats / 40)), seatsPerRow: Math.min(40, seats), rowStyle: "curved" });
+      elements.push({ id: `template-sector-${levelIndex + 1}-${index + 1}`, kind: "sector", label: `Settore ${levelIndex + 1}.${index + 1}`, levelId: level.id, scope: "level", polygon: rectangle(cx - width / 2, cy - height / 2, width, height), rotation: angle * 180 / Math.PI + 90, rows: Math.max(1, Math.ceil(seats / 40)), seatsPerRow: Math.min(40, seats), rowStyle: "curved" });
     }
   });
   const primary = kind === "concert" || kind === "square" || kind === "outdoor" || kind === "fairground" ? "stage" : "field";
-  elements.push({ id: `template-${primary}`, kind: primary, label: primary === "stage" ? "Palco" : "Campo", levelId: levels[0].id, polygon: rectangle(widthM * 0.34, heightM * 0.34, widthM * 0.32, heightM * 0.32) });
-  return { schemaVersion: 2, unit: "m", widthM, heightM, levels, elements };
+  elements.push({ id: `template-${primary}`, kind: primary, label: primary === "stage" ? "Palco" : "Campo", scope: "shared", polygon: rectangle(widthM * 0.34, heightM * 0.34, widthM * 0.32, heightM * 0.32) });
+  const shape = kind === "custom" ? "custom" : "rounded-rectangle";
+  return { schemaVersion: 3, unit: "m", widthM, heightM, planShape: { kind: shape, center: { x: widthM / 2, y: heightM / 2 }, outerWidthM: widthM * .9, outerHeightM: heightM * .9, cornerRadiusM: shape === "rounded-rectangle" ? Math.min(widthM, heightM) * .12 : undefined }, levels, elements };
 }
 
 export function countSeats(document: VenueDocument): number {
