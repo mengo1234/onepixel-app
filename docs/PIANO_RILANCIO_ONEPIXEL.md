@@ -4,6 +4,20 @@ Stato: **approvato il 3 agosto 2026, implementazione in corso**
 Workspace: `/var/home/fabio/Documenti/Claude/onePixel-NOVA`  
 Data audit: 3 agosto 2026
 
+## Avanzamento verificato
+
+- Fasi 0-2 completate: baseline Git/tag, Venue v3, migrazione legacy, generatore di
+  anelli concentrici, capienza esatta e wizard stadio.
+- Interazioni editor principali completate: click-to-place, vista composita/filtro
+  anello, proporzioni corrette, zoom, pan, zoom-to-fit, snap, duplicazione, selezione
+  multipla e pannello oggetti.
+- Dashboard in corso: modifica evento con vincoli per stato, gestione abilitazione
+  utenti superadmin, loading/error globali completati.
+- Verifiche correnti: 43 test control-plane, build TypeScript, lint e build Next.js
+  superati. Il browser grafico isolato non è disponibile nella sessione corrente,
+  quindi il gate visuale/E2E resta aperto.
+- Android non controllato né modificato in questo ciclo, come richiesto.
+
 ## 1. Obiettivo
 
 Portare onePixel da prototipo funzionante a prodotto modificabile e verificabile,
