@@ -1,0 +1,40 @@
+.tool-state/
+.env
+.env.*
+!.env.example
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+npm-debug.log*
+.data/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+coverage/
+*.iml
+*.jks
+*.keystore
+key.properties
+
+# IDE and local files
+.idea/
+.vscode/
+.avd/
+.playwright-cli/
+.DS_Store
+firebase-debug.log
+
+# Generated artwork sources are local; approved exports stay versioned.
+assets/generated/source/
+.vercel
+.env*.local
+
+# Local release archive; the downloadable APK in apps/share/public stays versioned.
+artifacts/

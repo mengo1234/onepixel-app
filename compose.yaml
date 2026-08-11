@@ -1,0 +1,42 @@
+services:
+  control-plane:
+    build:
+      context: .
+      dockerfile: services/control-plane/Dockerfile
+    restart: unless-stopped
+    environment:
+      ONEPIXEL_QR_SECRET: ${ONEPIXEL_QR_SECRET:?set ONEPIXEL_QR_SECRET in the environment}
+      ONEPIXEL_DATABASE: /var/lib/onepixel/postgres
+      ONEPIXEL_STORAGE: /var/lib/onepixel/storage
+      ONEPIXEL_DEMO_SEED: ${ONEPIXEL_DEMO_SEED:-false}
+      ONEPIXEL_ALLOWED_ORIGINS: ${ONEPIXEL_ALLOWED_ORIGINS:-}
+      ONEPIXEL_PAYMENT_MODE: ${ONEPIXEL_PAYMENT_MODE:-mock}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+    volumes:
+      - onepixel-data:/var/lib/onepixel
+    ports:
+      - "4100:4100"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    restart: unless-stopped
+    environment:
+      ONEPIXEL_API_URL: http://control-plane:4100
+      ONEPIXEL_COOKIE_SECURE: ${ONEPIXEL_COOKIE_SECURE:-true}
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+volumes:
+  onepixel-data:

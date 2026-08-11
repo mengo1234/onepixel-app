@@ -1,0 +1,8 @@
+.git
+.tool-state
+**/node_modules
+**/.next
+**/.dart_tool
+**/build
+artifacts
+services/control-plane/.data

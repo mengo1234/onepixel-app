@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --ink: #0b0d0e;
+  --ink-soft: #15191b;
+  --panel: #1b2022;
+  --line: #303739;
+  --paper: #f2f3ed;
+  --muted: #9ba3a2;
+  --signal: #d1e66a;
+  --danger: #e26d5a;
+  --background: var(--ink);
+  --foreground: var(--paper);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ink);
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-sans);
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 3px;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
+.leaflet-container {
+  min-height: 100%;
+  background: #151a1b;
+  font-family: var(--font-sans);
+}
+
+.leaflet-control-attribution,
+.leaflet-control-zoom a {
+  background: rgb(13 16 17 / 88%) !important;
+  color: #aab1af !important;
+  border-color: rgb(255 255 255 / 10%) !important;
+}
+
+::selection {
+  background: var(--signal);
+  color: var(--ink);
+}
+
+.surface-grid {
+  background-image:
+    linear-gradient(rgba(209, 230, 106, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(209, 230, 106, 0.035) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.signal-scan {
+  animation: signal-scan 3.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.breathe {
+  animation: breathe 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.image-skin {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-image-slice: 108 108 fill;
+  border-image-width: 26px;
+  border-image-repeat: stretch;
+}
+
+.image-skin-card {
+  border-image-width: 18px;
+}
+
+.image-skin::after {
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  border-radius: inherit;
+  content: "";
+  transition: background-color 180ms ease;
+}
+
+.image-skin:hover::after {
+  background: rgb(255 255 255 / 0.07);
+}
+
+@utility editor-icon {
+  @apply grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.035] text-[#9ba3a2] transition hover:bg-white/[0.07] hover:text-white active:scale-[0.96] disabled:opacity-25;
+}
+
+@utility editor-mini {
+  @apply grid size-7 shrink-0 place-items-center rounded-lg text-[#747c7a] transition hover:bg-white/5 hover:text-white disabled:opacity-20;
+}
+
+@utility editor-tool {
+  @apply flex h-10 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] px-3 text-left text-[11px] text-[#9ba3a2] transition hover:border-white/15 hover:bg-white/[0.055] hover:text-white active:scale-[0.98] disabled:opacity-30;
+}
+
+@utility editor-tool-active {
+  @apply border-[#d1e66a]/40 bg-[#d1e66a]/10 text-[#d1e66a];
+}
+
+@utility editor-label {
+  @apply grid gap-1.5 text-[10px] font-medium text-[#858d8b];
+}
+
+@utility editor-input {
+  @apply h-9 w-full rounded-xl border border-white/10 bg-[#0b0e0f] px-3 text-xs text-white outline-none transition focus:border-[#d1e66a]/50;
+}
+
+@utility editor-secondary {
+  @apply flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 text-[10px] text-[#9ba3a2] transition hover:bg-white/5 hover:text-white active:scale-[0.98];
+}
+
+@keyframes signal-scan {
+  0%, 100% { transform: translateY(-170px); opacity: 0; }
+  15%, 75% { opacity: 0.75; }
+  85% { transform: translateY(170px); opacity: 0; }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(0.88); opacity: 0.45; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
