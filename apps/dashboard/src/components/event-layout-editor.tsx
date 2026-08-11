@@ -16,7 +16,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { countSeats, polygonBounds, rectangle, type ElementKind, type VenueDocument, type VenueElement } from "@/lib/venue-types";
+import { countSeats, polygonBounds, polygonCentroid, rectangle, type ElementKind, type VenueDocument, type VenueElement } from "@/lib/venue-types";
 import { Localized } from "./dashboard-language";
 
 type TemporaryKind = "stage" | "runway" | "barrier" | "standing-area" | "technical-area" | "accessible-area";
@@ -37,6 +37,11 @@ const labels: Record<TemporaryKind, string> = {
 
 function isTemporary(element: VenueElement) {
   return element.id.startsWith("event-");
+}
+
+function displayLabel(element: VenueElement) {
+  if (element.kind !== "sector") return element.label;
+  return element.label.replace(/^Anello\s+(\d+)\s*·\s*S(\d+)$/i, "A$1 · S$2");
 }
 
 function elementColor(kind: ElementKind, selected: boolean, temporary: boolean) {
@@ -237,9 +242,11 @@ export function EventLayoutEditor({ eventId, eventTitle, venueName, initialDocum
             const active = selectedId === element.id;
             const temporary = isTemporary(element);
             const bounds = polygonBounds(element.polygon);
+            const labelPoint = polygonCentroid(element.polygon);
             return <g key={element.id} transform={`rotate(${element.rotation ?? 0} ${bounds.x + bounds.width / 2} ${bounds.y + bounds.height / 2})`} onPointerDown={(event) => startElementPointer(event, element)} onPointerMove={moveElement} onPointerUp={endElement} onPointerCancel={endElement} className={temporary ? "cursor-move" : "cursor-pointer"}>
+              <title>{element.label}</title>
               <polygon points={element.polygon.map((point) => `${point.x},${point.y}`).join(" ")} fill={elementColor(element.kind, active, temporary)} fillOpacity={element.hidden ? .11 : active ? .96 : temporary ? .82 : .58} stroke={element.hidden ? "#e2a65a" : active ? "#f2f3ed" : temporary ? "rgba(255,255,255,.42)" : "rgba(255,255,255,.16)"} strokeDasharray={element.hidden ? "2 1.5" : temporary ? "1.5 1" : undefined} strokeWidth={active ? .9 : .45} vectorEffect="non-scaling-stroke" />
-              <text x={bounds.x + bounds.width / 2} y={bounds.y + bounds.height / 2} textAnchor="middle" dominantBaseline="middle" fill={element.hidden ? "#e2a65a" : active ? "#101314" : "#e0e5e2"} fontSize={Math.max(2.4, Math.min(5, bounds.width / 6))} fontWeight="650" pointerEvents="none">{element.hidden ? `${element.label} · CHIUSA` : element.label}</text>
+              <text x={labelPoint.x} y={labelPoint.y} textAnchor="middle" dominantBaseline="middle" fill={element.hidden ? "#e2a65a" : active ? "#101314" : "#e0e5e2"} fontSize={Math.max(2.1, Math.min(3.4, Math.min(bounds.width, bounds.height) / 3.4))} fontWeight="650" pointerEvents="none">{element.hidden ? `${displayLabel(element)} · CHIUSA` : displayLabel(element)}</text>
             </g>;
           })}
         </svg>

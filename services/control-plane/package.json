@@ -39,5 +39,18 @@
     "typescript": "5.9.3",
     "vitest": "^4.1.10",
     "ws": "^8.21.1"
+  },
+  "overrides": {
+    "@fastify/ajv-compiler": {
+      "fast-uri": "3.1.5"
+    },
+    "ajv": {
+      "fast-uri": "3.1.5"
+    },
+    "fast-json-stringify": {
+      "fast-uri": "4.1.2"
+    },
+    "nanoid": "3.3.17",
+    "postcss": "8.5.26"
   }
 }

@@ -42,6 +42,28 @@ export function polygonBounds(polygon: Point2D[]) {
   return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
 }
 
+export function polygonCentroid(polygon: Point2D[]): Point2D {
+  if (polygon.length === 0) return { x: 0, y: 0 };
+  let twiceArea = 0;
+  let weightedX = 0;
+  let weightedY = 0;
+  for (let index = 0; index < polygon.length; index += 1) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    const cross = current.x * next.y - next.x * current.y;
+    twiceArea += cross;
+    weightedX += (current.x + next.x) * cross;
+    weightedY += (current.y + next.y) * cross;
+  }
+  if (Math.abs(twiceArea) < 1e-8) {
+    return {
+      x: polygon.reduce((sum, point) => sum + point.x, 0) / polygon.length,
+      y: polygon.reduce((sum, point) => sum + point.y, 0) / polygon.length,
+    };
+  }
+  return { x: weightedX / (3 * twiceArea), y: weightedY / (3 * twiceArea) };
+}
+
 export function rectangle(x: number, y: number, width: number, height: number): Point2D[] {
   return [{ x, y }, { x: x + width, y }, { x: x + width, y: y + height }, { x, y: y + height }];
 }
