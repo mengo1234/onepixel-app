@@ -56,7 +56,7 @@ const elementTools: Array<{ kind: ElementKind; label: string; icon: typeof Build
   { kind: "barrier", label: "Transenna", icon: BarricadeIcon },
   { kind: "free-area", label: "Area libera", icon: BoundingBoxIcon },
 ];
-const primaryElementKinds = new Set<ElementKind>(["sector", "stand", "stage", "entrance", "exit"]);
+const primaryElementKinds = new Set<ElementKind>(["sector", "stand", "entrance", "exit", "accessible-area"]);
 
 const kindLabels: Record<ElementKind, string> = {
   sector: "Settore", stand: "Tribuna", curve: "Curva", block: "Blocco", field: "Campo", stage: "Palco", runway: "Passerella", entrance: "Ingresso", exit: "Uscita", aisle: "Corridoio", barrier: "Transenna", "technical-area": "Area tecnica", "standing-area": "Area in piedi", "accessible-area": "Area accessibile", "free-area": "Area libera",
@@ -657,7 +657,8 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       return;
     }
     try {
-      const next = generateVenueDocument(venueKind, setupCapacity, setupLevels, { shape: setupShape, capacityMode: setupCapacityMode, outerWidthM: setupOuterWidth, outerHeightM: setupOuterHeight, fieldWidthM: setupFieldWidth, fieldHeightM: setupFieldHeight, rings: setupRings });
+      const tieredVenue = venueKind === "stadium" || venueKind === "arena";
+      const next = generateVenueDocument(venueKind, setupCapacity, tieredVenue ? setupLevels : 1, { shape: setupShape, capacityMode: setupCapacityMode, outerWidthM: setupOuterWidth, outerHeightM: setupOuterHeight, fieldWidthM: setupFieldWidth, fieldHeightM: setupFieldHeight, rings: setupRings });
       setDocument(next);
       fitViewport(next);
       setActiveLevelId(next.levels[0].id);
@@ -683,14 +684,26 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
     }));
   }
 
+  function chooseVenueKind(nextKind: StoredVenue["kind"]) {
+    const dimensions: Partial<Record<StoredVenue["kind"], [number, number]>> = {
+      stadium: [205, 155], arena: [112, 92], square: [120, 100], outdoor: [180, 130], fairground: [240, 170], custom: [100, 100],
+    };
+    setVenueKind(nextKind);
+    const nextDimensions = dimensions[nextKind];
+    if (nextDimensions) {
+      setSetupOuterWidth(nextDimensions[0]);
+      setSetupOuterHeight(nextDimensions[1]);
+    }
+  }
+
   if (!setupComplete) {
     const options: Array<{ value: StoredVenue["kind"]; label: string; note: string }> = [
       { value: "stadium", label: "Stadio", note: "Anelli, campo e settori" },
       { value: "arena", label: "Palazzetto", note: "Compatto e multilivello" },
-      { value: "concert", label: "Concerto", note: "Palco e platea" },
-      { value: "square", label: "Piazza", note: "Manifestazioni e raduni" },
-      { value: "outdoor", label: "Area esterna", note: "Cortei e spazi liberi" },
-      { value: "custom", label: "Da zero", note: "Tavola completamente libera" },
+      { value: "square", label: "Piazza", note: "Spazio pubblico permanente" },
+      { value: "outdoor", label: "Area esterna", note: "Parco, percorso o spazio aperto" },
+      { value: "fairground", label: "Fiera", note: "Padiglioni e grandi aree" },
+      { value: "custom", label: "Spazio personalizzato", note: "Pianta libera o importata" },
     ];
     const shapeOptions: Array<{ value: Exclude<VenuePlanShapeKind, "custom">; label: string; note: string }> = [
       { value: "oval", label: "Ovale", note: "Calcio e atletica" },
@@ -698,6 +711,11 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       { value: "rounded-rectangle", label: "Rettangolo stondato", note: "Tribune più lineari" },
     ];
     const manualTotal = setupRings.reduce((sum, ring) => sum + (ring.capacity ?? 0), 0);
+    const tieredVenue = venueKind === "stadium" || venueKind === "arena";
+    const setupTitle = tieredVenue ? "Configura anelli e settori." : "Definisci lo spazio fisico di base.";
+    const setupDescription = tieredVenue
+      ? "Parti da misure, capienza e livelli reali. onePixel genera tutti gli anelli insieme; in seguito potrai correggere ogni settore e posto."
+      : "Crea la pianta riutilizzabile del luogo. Palco, passerelle, transenne e platea verranno aggiunti senza modificare l'originale quando prepari il singolo evento.";
     let previewRingCapacities: number[] = [];
     if ((venueKind === "stadium" || venueKind === "arena") && setupCapacityMode !== "manual") {
       try {
@@ -705,10 +723,10 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
       } catch { previewRingCapacities = []; }
     }
     return <Localized><div className="overflow-hidden rounded-[34px] border border-white/10 bg-[#101415] shadow-[0_28px_90px_-40px_rgba(0,0,0,.85)]">
-      <div className="border-b border-white/10 p-6 sm:p-8"><p className="font-mono text-[9px] uppercase tracking-[.2em] text-[#d1e66a]">CONFIGURAZIONE GUIDATA · PRIMA DELLA PIANTA</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.05em]">Com&apos;è fatto davvero lo stadio?</h2><p className="mt-3 max-w-3xl text-xs leading-5 text-[#858d8b]">Definisci forma, anelli, capienza e settori. onePixel costruirà bande concentriche reali, tutte visibili e selezionabili singolarmente.</p></div>
+      <div className="border-b border-white/10 p-6 sm:p-8"><p className="font-mono text-[9px] uppercase tracking-[.2em] text-[#d1e66a]">CONFIGURAZIONE GUIDATA · STRUTTURA RIUTILIZZABILE</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.05em]">{setupTitle}</h2><p className="mt-3 max-w-3xl text-xs leading-5 text-[#858d8b]">{setupDescription}</p></div>
       <div className="grid xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="space-y-8 p-6 sm:p-8">
-          <section><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">01 · TIPO DI SPAZIO</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{options.map((option) => <button type="button" key={option.value} onClick={() => setVenueKind(option.value)} className={`min-h-24 rounded-[20px] border p-4 text-left transition ${venueKind === option.value ? "border-[#d1e66a]/45 bg-[#d1e66a]/9" : "border-white/8 bg-white/[.02] hover:border-white/15"}`}><BuildingsIcon size={18} className={venueKind === option.value ? "text-[#d1e66a]" : "text-[#68706f]"} /><span className="mt-3 block text-xs font-semibold text-white">{option.label}</span><span className="mt-1 block text-[9px] text-[#707876]">{option.note}</span></button>)}</div></section>
+          <section><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">01 · TIPO DI STRUTTURA FISICA</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{options.map((option) => <button type="button" key={option.value} onClick={() => chooseVenueKind(option.value)} className={`min-h-24 rounded-[20px] border p-4 text-left transition active:scale-[.98] ${venueKind === option.value ? "border-[#d1e66a]/45 bg-[#d1e66a]/9" : "border-white/8 bg-white/[.02] hover:border-white/15"}`}><BuildingsIcon size={18} className={venueKind === option.value ? "text-[#d1e66a]" : "text-[#68706f]"} /><span className="mt-3 block text-xs font-semibold text-white">{option.label}</span><span className="mt-1 block text-[9px] text-[#707876]">{option.note}</span></button>)}</div></section>
           {(venueKind === "stadium" || venueKind === "arena") && <>
             <section><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">02 · FORMA VISTA DALL&apos;ALTO</p><div className="mt-4 grid gap-3 sm:grid-cols-3">{shapeOptions.map((shape) => <button type="button" key={shape.value} onClick={() => setSetupShape(shape.value)} className={`rounded-[20px] border p-4 text-left transition ${setupShape === shape.value ? "border-[#d1e66a]/45 bg-[#d1e66a]/9" : "border-white/8 bg-white/[.02]"}`}><span className="block text-xs font-semibold text-white">{shape.label}</span><span className="mt-1 block text-[9px] text-[#707876]">{shape.note}</span></button>)}</div><p className="mt-3 rounded-xl border border-white/8 bg-white/[.02] p-3 text-[10px] text-[#7f8886]">Forma personalizzata/importata: genera prima la base, poi usa <span className="text-[#d1e66a]">Importa da mappa</span> nell&apos;editor.</p></section>
             <section><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">03 · ANELLI E SETTORI</p><p className="mt-2 text-xs text-[#929a98]">Ogni anello può avere nome, capienza e numero di settori diversi.</p></div><label className="editor-label w-32">Numero anelli<select value={setupLevels} onChange={(event) => changeSetupLevels(Number(event.target.value))} className="editor-input h-10">{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label></div>
@@ -716,9 +734,10 @@ export function ArenaEditor({ initialVenue, initialLayouts = [] }: { initialVenu
             </section>
           </>}
         </div>
-        <aside className="border-t border-white/10 bg-[#0d1112] p-6 sm:p-8 xl:border-l xl:border-t-0"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">04 · DIMENSIONAMENTO</p><div className="mt-6 space-y-5"><label className="editor-label">Nome struttura<input value={name} onChange={(event) => setName(event.target.value)} className="editor-input h-11" /></label><label className="editor-label">Capienza totale<input type="number" min={1} max={1000000} step={100} value={setupCapacity} onChange={(event) => setSetupCapacity(Math.max(1, Number(event.target.value)))} className="editor-input h-11 font-mono" /></label>
-          {(venueKind === "stadium" || venueKind === "arena") && <><label className="editor-label">Distribuzione<select value={setupCapacityMode} onChange={(event) => setSetupCapacityMode(event.target.value as VenueCapacityMode)} className="editor-input h-11"><option value="smart">Intelligente, in base alla geometria</option><option value="equal">Uguale tra gli anelli</option><option value="manual">Manuale per anello</option></select></label><div className="grid grid-cols-2 gap-2"><label className="editor-label">Stadio larghezza<input type="number" min="60" value={setupOuterWidth} onChange={(event) => setSetupOuterWidth(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Stadio altezza<input type="number" min="60" value={setupOuterHeight} onChange={(event) => setSetupOuterHeight(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Campo larghezza<input type="number" min="20" value={setupFieldWidth} onChange={(event) => setSetupFieldWidth(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Campo altezza<input type="number" min="20" value={setupFieldHeight} onChange={(event) => setSetupFieldHeight(Number(event.target.value))} className="editor-input font-mono" /></label></div></>}
-          <div className={`rounded-2xl border p-4 ${setupCapacityMode === "manual" && manualTotal !== setupCapacity ? "border-[#e2a65a]/30 bg-[#e2a65a]/8" : "border-[#d1e66a]/20 bg-[#d1e66a]/6"}`}><p className="font-mono text-2xl text-[#d1e66a]">{setupCapacity.toLocaleString("it-IT")}</p><p className="mt-1 text-[10px] text-[#89918f]">{setupCapacityMode === "manual" ? `Somma anelli: ${manualTotal.toLocaleString("it-IT")}` : `Distribuzione ${setupCapacityMode === "smart" ? "geometrica intelligente" : "uguale"}`}</p></div>{error && <p role="alert" className="rounded-xl border border-[#e26d5a]/25 bg-[#e26d5a]/10 p-3 text-xs text-[#f1a193]">{error}</p>}<button type="button" disabled={name.trim().length < 2 || setupCapacity < 1 || ((venueKind === "stadium" || venueKind === "arena") && setupCapacityMode === "manual" && manualTotal !== setupCapacity)} onClick={generateInitialVenue} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#d1e66a] text-sm font-semibold text-[#101314] disabled:opacity-30">Genera anelli e pianta <ArrowUUpRightIcon size={17} weight="bold" /></button></div></aside>
+        <aside className="border-t border-white/10 bg-[#0d1112] p-6 sm:p-8 xl:border-l xl:border-t-0"><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#68716f]">{tieredVenue ? "04" : "02"} · DIMENSIONAMENTO</p><div className="mt-6 space-y-5"><label className="editor-label">Nome struttura<input value={name} onChange={(event) => setName(event.target.value)} className="editor-input h-11" /></label><label className="editor-label">Capienza massima fisica<input type="number" min={1} max={1000000} step={100} value={setupCapacity} onChange={(event) => setSetupCapacity(Math.max(1, Number(event.target.value)))} className="editor-input h-11 font-mono" /><span className="text-[9px] leading-4 text-[#68716f]">L&apos;evento potrà usare una capienza inferiore e chiudere singole zone.</span></label>
+          {tieredVenue && <label className="editor-label">Distribuzione<select value={setupCapacityMode} onChange={(event) => setSetupCapacityMode(event.target.value as VenueCapacityMode)} className="editor-input h-11"><option value="smart">Intelligente, in base alla geometria</option><option value="equal">Uguale tra gli anelli</option><option value="manual">Manuale per anello</option></select></label>}
+          <div className="grid grid-cols-2 gap-2"><label className="editor-label">{tieredVenue ? "Struttura larghezza" : "Area larghezza"}<input type="number" min={tieredVenue ? 60 : 20} value={setupOuterWidth} onChange={(event) => setSetupOuterWidth(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">{tieredVenue ? "Struttura altezza" : "Area altezza"}<input type="number" min={tieredVenue ? 60 : 20} value={setupOuterHeight} onChange={(event) => setSetupOuterHeight(Number(event.target.value))} className="editor-input font-mono" /></label>{tieredVenue && <><label className="editor-label">Campo larghezza<input type="number" min="20" value={setupFieldWidth} onChange={(event) => setSetupFieldWidth(Number(event.target.value))} className="editor-input font-mono" /></label><label className="editor-label">Campo altezza<input type="number" min="20" value={setupFieldHeight} onChange={(event) => setSetupFieldHeight(Number(event.target.value))} className="editor-input font-mono" /></label></>}</div>
+          <div className={`rounded-2xl border p-4 ${tieredVenue && setupCapacityMode === "manual" && manualTotal !== setupCapacity ? "border-[#e2a65a]/30 bg-[#e2a65a]/8" : "border-[#d1e66a]/20 bg-[#d1e66a]/6"}`}><p className="font-mono text-2xl text-[#d1e66a]">{setupCapacity.toLocaleString("it-IT")}</p><p className="mt-1 text-[10px] text-[#89918f]">{tieredVenue ? setupCapacityMode === "manual" ? `Somma anelli: ${manualTotal.toLocaleString("it-IT")}` : `Distribuzione ${setupCapacityMode === "smart" ? "geometrica intelligente" : "uguale"}` : "Capienza base della struttura"}</p></div>{error && <p role="alert" className="rounded-xl border border-[#e26d5a]/25 bg-[#e26d5a]/10 p-3 text-xs text-[#f1a193]">{error}</p>}<button type="button" disabled={name.trim().length < 2 || setupCapacity < 1 || (tieredVenue && setupCapacityMode === "manual" && manualTotal !== setupCapacity)} onClick={generateInitialVenue} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#d1e66a] text-sm font-semibold text-[#101314] transition active:scale-[.98] disabled:opacity-30">{tieredVenue ? "Genera anelli e pianta" : "Genera struttura di base"} <ArrowUUpRightIcon size={17} weight="bold" /></button></div></aside>
       </div>
     </div></Localized>;
   }

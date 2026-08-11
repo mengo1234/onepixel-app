@@ -150,7 +150,7 @@ try {
   });
   assert.equal(venueWizard.status, 200);
   const venueWizardText = visibleText(await venueWizard.text());
-  assert.match(venueWizardText, /Build any space from above/);
+  assert.match(venueWizardText, /Build the venue once/);
   assert.match(venueWizardText, /RINGS AND SECTIONS|Number of rings/);
   assert.doesNotMatch(venueWizardText, /ANELLI E SETTORI|Numero anelli/);
 
@@ -162,6 +162,7 @@ try {
     "/venues",
     "/venues/venue_arena_nord/edit",
     "/events/event_finale_luce/edit",
+    "/events/event_finale_luce/layout",
     "/events/event_finale_luce/live",
     "/events/event_finale_luce/studio",
     "/events/event_finale_luce/upgrade",

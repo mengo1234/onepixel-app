@@ -14,6 +14,7 @@ import {
 
 export type Point2D = ProtocolPoint2D;
 export type VenueKind = "stadium" | "arena" | "concert" | "square" | "outdoor" | "fairground" | "custom";
+export type PhysicalVenueKind = Exclude<VenueKind, "concert">;
 export type ElementKind = VenueElementKind;
 export type VenueLevel = ProtocolVenueLevel;
 export type VenueElement = ProtocolVenueElement;
@@ -79,8 +80,8 @@ export function pointInLocalPolygon(point: Point2D, polygon: Point2D[]): boolean
 }
 
 export function generateVenueDocument(kind: VenueKind, capacity: number, levelsCount = 1, options: VenueGenerationOptions = {}): VenueDocument {
-  const widthM = kind === "stadium" ? 220 : kind === "arena" ? 130 : 180;
-  const heightM = kind === "stadium" ? 170 : kind === "arena" ? 100 : 130;
+  const widthM = kind === "stadium" ? 220 : kind === "arena" ? 130 : options.outerWidthM ?? 180;
+  const heightM = kind === "stadium" ? 170 : kind === "arena" ? 100 : options.outerHeightM ?? 130;
   if (kind === "stadium" || kind === "arena") {
     return generateStadiumVenueDocument({
       shape: options.shape ?? (kind === "arena" ? "circle" : "oval"),
@@ -94,30 +95,47 @@ export function generateVenueDocument(kind: VenueKind, capacity: number, levelsC
       rings: options.rings,
     });
   }
-  const levels: VenueLevel[] = Array.from({ length: levelsCount }, (_, index) => ({ id: `template-level-${index + 1}`, name: levelsCount === 1 ? "Piano terra" : `Anello ${index + 1}`, order: index, elevationM: index * 8, role: levelsCount === 1 ? "ground" : "ring" }));
+  // Non-stadium venues describe the reusable physical place only. Stages,
+  // runways, barriers and temporary audience areas belong to the event setup.
+  const physicalLevelsCount = kind === "concert" ? 1 : Math.max(1, levelsCount);
+  const levels: VenueLevel[] = Array.from({ length: physicalLevelsCount }, (_, index) => ({ id: `template-level-${index + 1}`, name: physicalLevelsCount === 1 ? "Piano terra" : `Livello ${index + 1}`, order: index, elevationM: index * 8, role: index === 0 ? "ground" : "ring" }));
+  if (kind === "custom") {
+    const seatsPerRow = Math.max(1, Math.min(2000, Math.ceil(Math.sqrt(capacity))));
+    const rows = Math.max(1, Math.ceil(capacity / seatsPerRow));
+    const surplus = rows * seatsPerRow - capacity;
+    const seatOverrides = Array.from({ length: surplus }, (_, index) => ({ id: `template-custom-deleted-${index + 1}`, row: String(rows), number: String(seatsPerRow - index), x: widthM / 2, y: heightM / 2, deleted: true }));
+    const audience: VenueElement = { id: "template-custom-audience", kind: "sector", label: "Area pubblico da configurare", levelId: levels[0].id, scope: "level", polygon: rectangle(widthM * .15, heightM * .15, widthM * .7, heightM * .7), rows, seatsPerRow, seatOverrides: seatOverrides.length ? seatOverrides : undefined, rowStyle: "straight" };
+    return { schemaVersion: 3, unit: "m", widthM, heightM, planShape: { kind: "custom", center: { x: widthM / 2, y: heightM / 2 }, outerWidthM: widthM * .9, outerHeightM: heightM * .9 }, levels: [levels[0]], elements: [audience] };
+  }
   const sectorCount = Math.max(4, Math.min(32, Math.ceil(Math.max(capacity, 200) / 900)));
   const perLevel = Math.ceil(sectorCount / levels.length);
   const elements: VenueElement[] = [];
   levels.forEach((level, levelIndex) => {
     const count = Math.min(perLevel, sectorCount - levelIndex * perLevel);
     for (let index = 0; index < count; index += 1) {
+      const globalSectorIndex = levelIndex * perLevel + index;
       const angle = (index / Math.max(1, count)) * Math.PI * 2;
       const cx = widthM / 2 + Math.cos(angle) * widthM * 0.37;
       const cy = heightM / 2 + Math.sin(angle) * heightM * 0.37;
       const width = 34;
       const height = 18;
-      const seats = Math.ceil(capacity / Math.max(1, sectorCount));
-      elements.push({ id: `template-sector-${levelIndex + 1}-${index + 1}`, kind: "sector", label: `Settore ${levelIndex + 1}.${index + 1}`, levelId: level.id, scope: "level", polygon: rectangle(cx - width / 2, cy - height / 2, width, height), rotation: angle * 180 / Math.PI + 90, rows: Math.max(1, Math.ceil(seats / 40)), seatsPerRow: Math.min(40, seats), rowStyle: "curved" });
+      const seats = Math.floor(capacity / sectorCount) + (globalSectorIndex < capacity % sectorCount ? 1 : 0);
+      const seatsPerRow = seats === 0 ? 0 : Math.min(40, seats);
+      const rows = seats === 0 ? 0 : Math.ceil(seats / seatsPerRow);
+      const surplus = rows * seatsPerRow - seats;
+      const seatOverrides = Array.from({ length: surplus }, (_, deletedIndex) => ({ id: `template-deleted-${levelIndex + 1}-${index + 1}-${deletedIndex + 1}`, row: String(rows), number: String(seatsPerRow - deletedIndex), x: cx, y: cy, deleted: true }));
+      elements.push({ id: `template-sector-${levelIndex + 1}-${index + 1}`, kind: "sector", label: `Settore ${levelIndex + 1}.${index + 1}`, levelId: level.id, scope: "level", polygon: rectangle(cx - width / 2, cy - height / 2, width, height), rotation: angle * 180 / Math.PI + 90, rows, seatsPerRow, seatOverrides: seatOverrides.length ? seatOverrides : undefined, rowStyle: "curved" });
     }
   });
-  const primary = kind === "concert" || kind === "square" || kind === "outdoor" || kind === "fairground" ? "stage" : "field";
-  elements.push({ id: `template-${primary}`, kind: primary, label: primary === "stage" ? "Palco" : "Campo", scope: "shared", polygon: rectangle(widthM * 0.34, heightM * 0.34, widthM * 0.32, heightM * 0.32) });
-  const shape = kind === "custom" ? "custom" : "rounded-rectangle";
+  elements.push({ id: "template-central-area", kind: "free-area", label: "Area centrale disponibile", scope: "shared", polygon: rectangle(widthM * 0.34, heightM * 0.34, widthM * 0.32, heightM * 0.32) });
+  elements.push({ id: "template-main-entrance", kind: "entrance", label: "Ingresso principale", scope: "shared", polygon: rectangle(widthM * .47, heightM * .92, widthM * .06, heightM * .035) });
+  const shape = "rounded-rectangle";
   return { schemaVersion: 3, unit: "m", widthM, heightM, planShape: { kind: shape, center: { x: widthM / 2, y: heightM / 2 }, outerWidthM: widthM * .9, outerHeightM: heightM * .9, cornerRadiusM: shape === "rounded-rectangle" ? Math.min(widthM, heightM) * .12 : undefined }, levels, elements };
 }
 
 export function countSeats(document: VenueDocument): number {
   return document.elements.reduce((total, element) => {
+    if (element.hidden) return total;
     const generated = new Set<string>();
     for (let row = 1; row <= Math.max(0, element.rows ?? 0); row += 1) {
       for (let seat = 1; seat <= Math.max(0, element.seatsPerRow ?? 0); seat += 1) generated.add(`${row}-${seat}`);

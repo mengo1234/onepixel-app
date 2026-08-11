@@ -23,7 +23,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
   if (venuesWithLayouts.length === 0) redirect("/venues/new?return_to=event");
   return (
     <Localized><div className="space-y-8">
-      <PageHeader eyebrow="Configurazione guidata" title="Crea il tuo evento, senza saltare nulla." description="Struttura, posizione, QR o GPS, capofila mobile e permessi della regia: il wizard prepara tutto prima dello studio." />
+      <PageHeader eyebrow="Nuovo evento · configurazione guidata" title="Definisci l'evento. Poi prepara il suo spazio." description="Scegli una struttura esistente, configura data e accessi, quindi crea un allestimento indipendente prima di effetti, QR e regia." />
       <NewEventForm venues={venuesWithLayouts} paymentId={payment.id} participantLimit={payment.participant_limit} />
     </div></Localized>
   );

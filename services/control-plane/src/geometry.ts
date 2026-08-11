@@ -46,6 +46,7 @@ export function zoneAtLocation(policy: EventAccessPolicy, lng: number, lat: numb
 }
 
 export function venueElementSeatIds(element: VenueElement): string[] {
+  if (element.hidden) return [];
   const rows = Math.max(0, element.rows ?? 0);
   const seatsPerRow = Math.max(0, element.seatsPerRow ?? 0);
   const generated = new Set<string>();

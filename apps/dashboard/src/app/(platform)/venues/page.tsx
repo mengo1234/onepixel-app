@@ -11,12 +11,12 @@ type Venue = { id: string; name: string; kind: VenueKind; capacity: number; map:
 export default async function VenuesPage() {
   const venues = await controlPlaneGet<Venue[]>("/v1/venues");
   const accents = ["#d1e66a", "#e2a65a", "#77a4a1", "#d17667"];
-  const kinds: Record<VenueKind, string> = { stadium: "Stadio", arena: "Palazzetto", concert: "Concerto", square: "Piazza", outdoor: "Area esterna", fairground: "Fiera", custom: "Personalizzata" };
+  const kinds: Record<VenueKind, string> = { stadium: "Stadio", arena: "Palazzetto", concert: "Spazio eventi precedente", square: "Piazza", outdoor: "Area esterna", fairground: "Fiera", custom: "Personalizzata" };
   return (
     <Localized><div className="space-y-8">
-      <PageHeader eyebrow="Strutture" title="Ogni posto ha coordinate precise." description="Genera una base dall'alto, poi modifica liberamente settori, righe, posti, campo, palco e ingressi." action={{ label: "Nuova struttura", href: "/venues/new" }} />
+      <PageHeader eyebrow="Biblioteca strutture" title="Il luogo resta. L'allestimento cambia." description="Crea una sola volta la pianta fisica di stadio, palazzetto, piazza o area esterna. Palco, platea e transenne verranno aggiunti nel singolo evento senza alterare l'originale." action={{ label: "Nuova struttura", href: "/venues/new" }} />
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[1.3fr_0.7fr]">
-        {venues.length === 0 && <div className="rounded-[30px] border border-dashed border-white/10 p-12 text-center md:col-span-2"><BuildingsIcon size={28} className="mx-auto text-[#d1e66a]" /><h2 className="mt-4 text-base font-semibold">Crea la prima struttura</h2><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#7d8583]">L’editor guidato genera una base pronta e ti permette di modificare ogni settore, livello e posto.</p></div>}
+        {venues.length === 0 && <div className="rounded-[30px] border border-dashed border-white/10 p-12 text-left md:col-span-2"><BuildingsIcon size={28} className="text-[#d1e66a]" /><h2 className="mt-4 text-base font-semibold">Crea la prima struttura fisica</h2><p className="mt-2 max-w-md text-xs leading-5 text-[#7d8583]">Il percorso guidato genera la base riutilizzabile; l&apos;editor avanzato resta disponibile per misure, livelli, settori, file e singoli posti.</p><Link href="/venues/new" className="mt-5 inline-flex rounded-full bg-[#d1e66a] px-5 py-3 text-xs font-semibold text-[#101314] transition active:scale-[.98]">Inizia dalla struttura</Link></div>}
         {venues.map((venue, index) => {
           let map: VenueMap = {};
           try { map = typeof venue.map === "string" ? JSON.parse(venue.map) as VenueMap : venue.map; } catch { map = {}; }

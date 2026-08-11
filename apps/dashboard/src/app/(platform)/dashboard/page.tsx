@@ -48,7 +48,7 @@ function parseSnapshot(value: Event["layout_snapshot"]) {
 }
 
 function eventHref(event: Event) {
-  if (event.status === "draft") return `/events/${event.id}/studio`;
+  if (event.status === "draft") return `/events/${event.id}/layout`;
   if (event.status === "published" || event.status === "live") return `/events/${event.id}/live`;
   return `/reports`;
 }

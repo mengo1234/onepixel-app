@@ -160,8 +160,22 @@ describe.sequential("onePixel control plane", () => {
     const edited = await app.inject({ method: "PATCH", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { title: "Luci in Piazza 2026", locationName: "Piazza del Faro nuova" } });
     expect(edited.statusCode).toBe(200);
     expect(edited.json()).toMatchObject({ title: "Luci in Piazza 2026", locationName: "Piazza del Faro nuova" });
+    const eventBeforeSetup = await app.inject({ method: "GET", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    const eventDocument = eventBeforeSetup.json().layout_snapshot;
+    const eventSetup = {
+      ...eventDocument,
+      elements: [...eventDocument.elements, { id: "temporary-stage", kind: "stage", label: "Palco evento", scope: "shared", polygon: [{ x: 30, y: 20 }, { x: 70, y: 20 }, { x: 70, y: 35 }, { x: 30, y: 35 }] }],
+    };
+    const setupSaved = await app.inject({ method: "PUT", url: `/v1/events/${selfServeEventId}/layout`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { document: eventSetup } });
+    expect(setupSaved.statusCode).toBe(200);
+    expect(setupSaved.json()).toMatchObject({ id: selfServeEventId, elements: eventSetup.elements.length });
+    const venueLayoutsAfterSetup = await app.inject({ method: "GET", url: `/v1/venues/${selfServeVenueId}/layouts`, headers: { authorization: `Bearer ${selfServeToken}` } });
+    expect(venueLayoutsAfterSetup.json().find((layout: { id: string }) => layout.id === selfServeLayoutId).document.elements).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: "temporary-stage" })]));
     const published = await app.inject({ method: "POST", url: `/v1/events/${selfServeEventId}/timeline`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { cues: [{ id: "welcome", atMs: 0, durationMs: 5000, zones: ["*"], color: "#D1E66A" }], assets: [], publish: true } });
     expect(published.statusCode).toBe(201);
+    const lockedSetup = await app.inject({ method: "PUT", url: `/v1/events/${selfServeEventId}/layout`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { document: eventSetup } });
+    expect(lockedSetup.statusCode).toBe(409);
+    expect(lockedSetup.json()).toMatchObject({ error: "EVENT_LAYOUT_LOCKED" });
     const cosmetic = await app.inject({ method: "PATCH", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { description: "Descrizione aggiornata dopo la pubblicazione" } });
     expect(cosmetic.statusCode).toBe(200);
     const locked = await app.inject({ method: "PATCH", url: `/v1/events/${selfServeEventId}`, headers: { authorization: `Bearer ${selfServeToken}` }, payload: { locationName: "Posizione vietata" } });

@@ -287,6 +287,7 @@ const eventUpdateSchema = z.object({
   torchAllowed: z.boolean().optional(),
   accessPolicy: accessPolicySchema.optional(),
 }).refine((value) => Object.keys(value).length > 0, "Indica almeno una modifica");
+const eventLayoutSchema = z.object({ document: venueDocumentSchema });
 const cueSchema = z.object({
   id: z.string().min(1),
   atMs: z.number().int().nonnegative(),
@@ -1230,6 +1231,20 @@ export async function createApp(options: AppOptions): Promise<FastifyInstance> {
     await database.query("UPDATE events SET title = $2, description = $3, program = $4, location_name = $5, cover_url = $6, kind = $7, starts_at = $8, ends_at = $9, latitude = $10, longitude = $11, discovery_radius_m = $12, audio_allowed = $13, torch_allowed = $14, access_policy = $15, updated_at = now() WHERE id = $1", [eventId, next.title, next.description, JSON.stringify(next.program), next.locationName, next.coverUrl, next.kind, next.startsAt, next.endsAt, next.latitude, next.longitude, next.discoveryRadiusM, next.audioAllowed, next.torchAllowed, JSON.stringify(next.accessPolicy)]);
     await audit(claims, "event.updated", "event", eventId, { fields: Object.keys(body) });
     return { id: eventId, status: event.status, ...next };
+  });
+
+  app.put("/v1/events/:eventId/layout", async (request) => {
+    const { eventId } = z.object({ eventId: z.string() }).parse(request.params);
+    const { claims, event } = await ownedEvent(request, eventId);
+    if (event.status !== "draft") throw new HttpError(409, "EVENT_LAYOUT_LOCKED", "L'allestimento può essere modificato soltanto finché l'evento è in bozza");
+    const { document } = eventLayoutSchema.parse(request.body);
+    const capacity = countVenueSeats(document);
+    if (capacity > Number(event.participant_limit ?? Number.MAX_SAFE_INTEGER)) {
+      throw new HttpError(409, "PAYMENT_TIER_TOO_SMALL", `L'allestimento contiene ${capacity} posti, oltre il limite dell'evento di ${event.participant_limit ?? 0}`);
+    }
+    await database.query("UPDATE events SET layout_snapshot = $2, updated_at = now() WHERE id = $1", [eventId, JSON.stringify(document)]);
+    await audit(claims, "event.layout.updated", "event", eventId, { capacity, elements: document.elements.length });
+    return { id: eventId, capacity, elements: document.elements.length, document };
   });
 
   app.post("/v1/events", async (request, reply) => {

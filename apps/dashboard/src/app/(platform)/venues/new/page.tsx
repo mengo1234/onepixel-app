@@ -5,7 +5,7 @@ import { Localized } from "@/components/dashboard-language";
 export default function NewVenuePage() {
   return (
     <Localized><div className="space-y-8">
-      <PageHeader eyebrow="Editor guidato 2D" title="Costruisci qualsiasi spazio dall'alto." description="Parti da una base automatica e segui i quattro passi. Puoi aggiungere livelli, tribune, palchi, righe e posti oppure importare il lotto dalla mappa." />
+      <PageHeader eyebrow="Struttura · configurazione guidata" title="Costruisci il luogo una volta sola." description="Scegli il tipo di spazio fisico, inserisci misure e capienza, quindi lascia che onePixel generi la base. Gli allestimenti temporanei verranno preparati dentro ogni evento." />
       <VenueEditor />
     </div></Localized>
   );
